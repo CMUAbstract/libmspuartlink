@@ -6,6 +6,12 @@ include ../Makefile.options
 OBJECTS = \
 	uartlink.o \
 
+DEPS += \
+	libmsp \
+	libio \
+
+include $(MAKER_ROOT)/Makefile.console
+
 override SRC_ROOT = ../../src
 
 override CFLAGS += \
