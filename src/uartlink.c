@@ -21,21 +21,45 @@ static decoder_state_t decoder_state = DECODER_STATE_HEADER;
 static unsigned rx_payload_len = 0;
 static ul_header_t rx_header;
 
-void uartlink_open()
+static void uartlink_configure()
 {
-    GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN);
-
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) |= UCSWRST; // put state machine in reset
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) |= UCSSEL__SMCLK;
-    // UART(LIBMSPUARTLINK_UART_IDX, CTL1) |= UCRXEIE;
 
     UART(LIBMSPUARTLINK_UART_IDX, BR0) = UART_BR0_LIBMSPUARTLINK_BAUDRATE;
     UART(LIBMSPUARTLINK_UART_IDX, BR1) = UART_BR1_LIBMSPUARTLINK_BAUDRATE;
     UART(LIBMSPUARTLINK_UART_IDX, MCTL) = 0;
 
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) &= ~UCSWRST; // turn on
+}
+
+#ifdef LIBMSPUARTLINK_PIN_RX
+void uartlink_open_rx()
+{
+    GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN);
+    uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE;
 }
+#endif // LIBMSPUARTLINK_PIN_RX
+
+#ifdef LIBMSPUARTLINK_PIN_TX
+void uartlink_open_tx()
+{
+    GPIO(LIBMSPUARTLINK_PIN_TX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_TX_PIN);
+    uartlink_configure();
+    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
+}
+#endif // LIBMSPUARTLINK_PIN_TX
+
+#if defined(LIBMSPUARTLINK_PIN_TX) && defined(LIBMSPUARTLINK_PIN_RX)
+// bidirectional (not implemenented)
+void uartlink_open()
+{
+    GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN) | BIT(LIBMSPUARTLINK_PIN_TX_PIN);
+    uartlink_configure();
+    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE | UCTXIE;
+}
+#endif // LIBMSPUARTLINK_PIN_TX && RX
 
 void uartlink_close()
 {
@@ -51,6 +75,42 @@ static inline void uartlink_enable_interrupt()
 {
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE;
 }
+
+#ifdef LIBMSPUARTLINK_PIN_TX
+static inline void send_byte(uint8_t b)
+{
+    // classic lock-check-sleep pattern
+    __disable_interrupt();
+    UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = b;
+    while (!(UART(LIBMSPUARTLINK_UART_IDX, IFG) & UCTXIFG)) {
+        __bis_SR_register(LPM0_bits + GIE); // will wakeup on TX int
+        __disable_interrupt();
+    }
+    __enable_interrupt();
+}
+
+void uartlink_send(uint8_t *payload, unsigned len)
+{
+    // Payload checksum
+    CRCINIRES = 0xFFFF; // initialize checksumer
+    for (int i = 0; i < len; ++i) {
+        CRCDI = *(payload + i);
+    }
+    uint8_t pay_chksum = CRCINIRES & UARTLINK_PAYLOAD_CHKSUM_MASK;
+
+    ul_header_ut header = { .typed = { .size = len,
+                                       .pay_chksum = pay_chksum,
+                                       .hdr_chksum = 0 /* to be filled in shortly */ } }
+
+    CRCINIRES = 0xFFFF; // initialize checksumer
+    CRCDI = header.raw;
+    header.hdr_chksum = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
+
+    send_byte(header.raw);
+    for (int i = 0; i < len; ++i)
+        send_byte(*(payload + i));
+}
+#endif LIBMSPUARTLINK_PIN_TX
 
 // Should be called whenever MCU wakes up, from the context of a main loop
 // precondition: payload points to a buffer of at least UARTLINK_MAX_PAYLOAD_SIZE
@@ -113,6 +173,8 @@ __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
 {
     switch(__even_in_range(UART(LIBMSPUARTLINK_UART_IDX, IV),USCI_UCTXIFG)) {
+        case USCI_UCTXIFG:
+            break; // nothing to do, main thread is sleeping, so just wakeup
         case USCI_UCRXIFG:                      // Vector 2 - RXIFG
         {
             P3OUT |= BIT2;
@@ -125,7 +187,6 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
                 // NOTE: tail == head happens both when full and empty, so can't use that as overflow check
                 rx_fifo_tail = (rx_fifo_tail - 1) & RX_FIFO_SIZE_MASK; // wrap-around (assumes size is power of 2)
             }
-            __bic_SR_register_on_exit(LPM4_bits); // wakeup
 
             P3OUT &= ~BIT2;
             break;
@@ -133,4 +194,5 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
         default:
             break;
     }
+    __bic_SR_register_on_exit(LPM4_bits); // wakeup
 }
