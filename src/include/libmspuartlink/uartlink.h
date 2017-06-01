@@ -26,7 +26,18 @@ typedef struct {
     uint8_t payload[UARTLINK_MAX_PAYLOAD_SIZE];
 } ul_pkt_t;
 
+#ifdef LIBMSPUARTLINK_PIN_RX_PORT
+void uartlink_open_rx();
+#endif // LIBMSPUARTLINK_PIN_RX_PORT
+
+#ifdef LIBMSPUARTLINK_PIN_TX_PORT
+void uartlink_open_tx();
+#endif // LIBMSPUARTLINK_PIN_TX_PORT
+
+#if defined(LIBMSPUARTLINK_PIN_TX_PORT) && defined(LIBMSPUARTLINK_PIN_RX_PORT)
 void uartlink_open();
+#endif // RX && TX
+
 void uartlink_close();
 
 // Returns length of received data, or zero if no pkt decoded

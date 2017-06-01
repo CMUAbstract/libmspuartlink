@@ -33,25 +33,25 @@ static void uartlink_configure()
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) &= ~UCSWRST; // turn on
 }
 
-#ifdef LIBMSPUARTLINK_PIN_RX
+#ifdef LIBMSPUARTLINK_PIN_RX_PORT
 void uartlink_open_rx()
 {
     GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN);
     uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE;
 }
-#endif // LIBMSPUARTLINK_PIN_RX
+#endif // LIBMSPUARTLINK_PIN_RX_PORT
 
-#ifdef LIBMSPUARTLINK_PIN_TX
+#ifdef LIBMSPUARTLINK_PIN_TX_PORT
 void uartlink_open_tx()
 {
     GPIO(LIBMSPUARTLINK_PIN_TX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_TX_PIN);
     uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
 }
-#endif // LIBMSPUARTLINK_PIN_TX
+#endif // LIBMSPUARTLINK_PIN_TX_PORT
 
-#if defined(LIBMSPUARTLINK_PIN_TX) && defined(LIBMSPUARTLINK_PIN_RX)
+#if defined(LIBMSPUARTLINK_PIN_TX_PORT) && defined(LIBMSPUARTLINK_PIN_RX_PORT)
 // bidirectional (not implemenented)
 void uartlink_open()
 {
@@ -59,7 +59,7 @@ void uartlink_open()
     uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE | UCTXIE;
 }
-#endif // LIBMSPUARTLINK_PIN_TX && RX
+#endif // LIBMSPUARTLINK_PIN_{TX && RX}_PORT
 
 void uartlink_close()
 {
@@ -110,7 +110,7 @@ void uartlink_send(uint8_t *payload, unsigned len)
     for (int i = 0; i < len; ++i)
         send_byte(*(payload + i));
 }
-#endif LIBMSPUARTLINK_PIN_TX
+#endif // LIBMSPUARTLINK_PIN_TX
 
 // Should be called whenever MCU wakes up, from the context of a main loop
 // precondition: payload points to a buffer of at least UARTLINK_MAX_PAYLOAD_SIZE
