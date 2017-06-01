@@ -9,16 +9,16 @@ else
 $(error Undefined config variable: LIBMSPUARTLINK_UART_IDX)
 endif # LIBMSPUARTLINK_UART_IDX
 
+ifneq ($(words $(LIBMSPUARTLINK_PIN_RX) $(LIBMSPUARTLINK_PIN_TX)),1)
+$(error One of these config variables needs to be defined: LIBMSPUARTLINK_PIN_{RX,TX})
+endif
+
 ifneq ($(LIBMSPUARTLINK_PIN_RX),)
 LOCAL_CFLAGS += $(call pin,RADIO_PORT_RX) \
-else
-$(error Undefined config variable: LIBMSPUARTLINK_PIN_RX)
 endif # LIBMSPUARTLINK_PIN_RX
 
 ifneq ($(LIBMSPUARTLINK_PIN_TX),)
 LOCAL_CFLAGS += $(call pin,RADIO_PORT_TX) \
-else
-$(error Undefined config variable: LIBMSPUARTLINK_PIN_TX)
 endif # LIBMSPUARTLINK_PIN_TX
 
 ifneq ($(LIBMSPUARTLINK_BAUDRATE),)
