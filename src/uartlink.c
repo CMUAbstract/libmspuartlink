@@ -19,18 +19,18 @@ static unsigned rx_fifo_tail = 0;
 
 static decoder_state_t decoder_state = DECODER_STATE_HEADER;
 static unsigned rx_payload_len = 0;
-static pkt_header_t rx_header;
+static ul_header_t rx_header;
 
 void uartlink_open()
 {
-    GPIO(PORT_UARTLINK_RX, SEL) |= BIT(PIN_UARTLINK_RX);
+    GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN);
 
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) |= UCSWRST; // put state machine in reset
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) |= UCSSEL__SMCLK;
     // UART(LIBMSPUARTLINK_UART_IDX, CTL1) |= UCRXEIE;
 
-    UART(LIBMSPUARTLINK_UART_IDX, BR0) = UART_BR0_UARTLINK;
-    UART(LIBMSPUARTLINK_UART_IDX, BR1) = UART_BR1_UARTLINK;
+    UART(LIBMSPUARTLINK_UART_IDX, BR0) = UART_BR0_LIBMSPUARTLINK_BAUDRATE;
+    UART(LIBMSPUARTLINK_UART_IDX, BR1) = UART_BR1_LIBMSPUARTLINK_BAUDRATE;
     UART(LIBMSPUARTLINK_UART_IDX, MCTL) = 0;
 
     UART(LIBMSPUARTLINK_UART_IDX, CTL1) &= ~UCSWRST; // turn on
@@ -68,7 +68,7 @@ unsigned uartlink_receive(uint8_t *payload)
         // even if we are parsing payload. Sender ensures that
         // header cannot appear inside a payload byte, using
         // an escaping scheme (TODO).
-        pkt_header_ut header = { .raw = rx_byte };
+        ul_header_ut header = { .raw = rx_byte };
 
         CRCINIRES = 0xFFFF; // initialize checksum'er for header
         CRCDI = header.raw;
