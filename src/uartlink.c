@@ -149,7 +149,7 @@ unsigned uartlink_receive(uint8_t *payload)
                     decoder_state = DECODER_STATE_PAYLOAD;
                 } else {
                     LOG("uartlink: hdr chksum mismatch (0x%02x != 0x%02x)\r\n",
-                        hdr_chksum_local, hdr_chksum);
+                        hdr_chksum_local, header.typed.hdr_chksum);
                 }
                 break;
             }
