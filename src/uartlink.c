@@ -116,8 +116,11 @@ void uartlink_send(uint8_t *payload, unsigned len)
 // precondition: payload points to a buffer of at least UARTLINK_MAX_PAYLOAD_SIZE
 unsigned uartlink_receive(uint8_t *payload)
 {
+    unsigned rx_pkt_len = 0;
+
     uartlink_disable_interrupt();
-    while (rx_fifo_head != rx_fifo_tail) {
+    // keep processing fifo content until empty, or until got pkt
+    while (rx_fifo_head != rx_fifo_tail && !rx_pkt_len) {
         uint8_t rx_byte = rx_fifo[rx_fifo_head++];
         rx_fifo_head &= RX_FIFO_SIZE_MASK; // wrap around
         uartlink_enable_interrupt();
@@ -154,7 +157,7 @@ unsigned uartlink_receive(uint8_t *payload)
                 // assert: pkt.header.size < UARTLINK_MAX_PAYLOAD_SIZE
                 payload[rx_payload_len++] = rx_byte;
                 CRCDI_L = rx_byte;
-                if (rx_payload_len == UARTLINK_MAX_PAYLOAD_SIZE) {
+                if (rx_payload_len == rx_header.size) {
                     // check payload checksum
                     uint8_t rx_payload_chksum = CRCINIRES & UARTLINK_PAYLOAD_CHKSUM_MASK;
                     if (rx_payload_chksum != rx_header.pay_chksum) {
@@ -163,7 +166,15 @@ unsigned uartlink_receive(uint8_t *payload)
                         // reset decoder
                         rx_payload_len = 0;
                         decoder_state = DECODER_STATE_HEADER;
+                    } else {
+                        LOG("uartlink: finished receiving pkt: len %u\r\n", rx_payload_len);
+                        rx_pkt_len = rx_payload_len;
                     }
+                } else if (rx_payload_len == UARTLINK_MAX_PAYLOAD_SIZE) {
+                    LOG("uartlink: payload too long\r\n");
+                    // reset decoder
+                    rx_payload_len = 0;
+                    decoder_state = DECODER_STATE_HEADER;
                 }
                 break;
         }
@@ -171,7 +182,7 @@ unsigned uartlink_receive(uint8_t *payload)
         uartlink_disable_interrupt(); // classic: check-and-...-sleep pattern
     }
     uartlink_enable_interrupt();
-    return rx_payload_len;
+    return rx_pkt_len;
 }
 
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK_UART_IDX))))
