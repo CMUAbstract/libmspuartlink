@@ -129,13 +129,13 @@ unsigned uartlink_receive(uint8_t *payload)
 
                 ul_header_ut header = { .raw = rx_byte };
 
-                unsigned hdr_chksum = header.typed.hdr_chksum;
-                header.typed.hdr_chksum = 0; // for checking header checksum
-
+                ul_header_ut header_unchksumed = header;
+                header_unchksumed.typed.hdr_chksum = 0;
                 CRCINIRES = 0xFFFF; // initialize checksum'er for header
-                CRCDI_L = header.raw;
+                CRCDI_L = header_unchksumed.raw;
+
                 unsigned hdr_chksum_local = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
-                if (hdr_chksum_local == hdr_chksum) {
+                if (hdr_chksum_local == header.typed.hdr_chksum) {
                     LOG("hdr 0x%02x: size %u | chksum: hdr 0x%02x pay 0x%02x\r\n",
                         header.raw, header.typed.size,
                         header.typed.hdr_chksum, header.typed.pay_chksum);
