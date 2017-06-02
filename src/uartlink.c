@@ -75,7 +75,7 @@ static inline void uartlink_enable_interrupt()
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE;
 }
 
-#ifdef LIBMSPUARTLINK_PIN_TX
+#ifdef LIBMSPUARTLINK_PIN_TX_PORT
 static inline void send_byte(uint8_t b)
 {
     // classic lock-check-sleep pattern
@@ -99,17 +99,17 @@ void uartlink_send(uint8_t *payload, unsigned len)
 
     ul_header_ut header = { .typed = { .size = len,
                                        .pay_chksum = pay_chksum,
-                                       .hdr_chksum = 0 /* to be filled in shortly */ } }
+                                       .hdr_chksum = 0 /* to be filled in shortly */ } };
 
     CRCINIRES = 0xFFFF; // initialize checksumer
     CRCDI = header.raw;
-    header.hdr_chksum = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
+    header.typed.hdr_chksum = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
 
     send_byte(header.raw);
     for (int i = 0; i < len; ++i)
         send_byte(*(payload + i));
 }
-#endif // LIBMSPUARTLINK_PIN_TX
+#endif // LIBMSPUARTLINK_PIN_TX_PORT
 
 // Should be called whenever MCU wakes up, from the context of a main loop
 // precondition: payload points to a buffer of at least UARTLINK_MAX_PAYLOAD_SIZE

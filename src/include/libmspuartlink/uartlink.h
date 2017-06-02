@@ -43,4 +43,7 @@ void uartlink_close();
 // Returns length of received data, or zero if no pkt decoded
 unsigned uartlink_receive(uint8_t *payload);
 
+// Pushes bytes over UART synchronously (sleeps as much as possible)
+void uartlink_send(uint8_t *payload, unsigned len);
+
 #endif // LIBMSPUARTLINK_UARTLINK_H
