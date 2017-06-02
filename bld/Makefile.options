@@ -23,7 +23,14 @@ override CFLAGS += $(call gpio_pin,LIBMSPUARTLINK_PIN_TX)
 endif # LIBMSPUARTLINK_PIN_TX
 
 ifneq ($(LIBMSPUARTLINK_BAUDRATE),)
-override CFLAGS := $(CFLAGS) $(call uart_baudrate,LIBMSPUARTLINK_BAUDRATE,$(LIBMSPUARTLINK_BAUDRATE),$(CLOCK_FREQ_SMCLK))
+override CFLAGS := $(CFLAGS) $(call uart_baudrate,LIBMSPUARTLINK_BAUDRATE,\
+                                    $(LIBMSPUARTLINK_BAUDRATE),$(CLOCK_FREQ_$(LIBMSPUARTLINK_CLOCK)))
 else
 $(error Undefined config variable: LIBMSPUARTLINK_BAUDRATE)
 endif # LIBMSPUARTLINK_BAUDRATE
+
+ifneq ($(LIBMSPUARTLINK_CLOCK),)
+override CFLAGS += -DLIBMSPUARTLINK_CLOCK=$(LIBMSPUARTLINK_CLOCK)
+else
+$(error Undefined confing variable: LIBMSPUARTLINK_CLOCK)
+endif
