@@ -128,15 +128,20 @@ unsigned uartlink_receive(uint8_t *payload)
         // header cannot appear inside a payload byte, using
         // an escaping scheme (TODO).
         ul_header_ut header = { .raw = rx_byte };
+        unsigned hdr_chksum = header.typed.hdr_chksum;
+        header_typed.hdr_chksum = 0; // for checking header checksum
 
         CRCINIRES = 0xFFFF; // initialize checksum'er for header
         CRCDI = header.raw;
-        if ((CRCINIRES & UARTLINK_HDR_CHKSUM_MASK) == header.typed.hdr_chksum) {
-
+        unsigned hdr_chksum_local = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
+        if (hdr_chksum_local == hdr_chksum) {
             rx_header = header.typed;
             rx_payload_len = 0; // init packet
             CRCINIRES = 0xFFFF; // initialize checksum'er for payload
             decoder_state = DECODER_STATE_PAYLOAD;
+        } else {
+            LOG("uartlink: hdr chksum mismatch (0x%02x != 0x%02x)\r\n",
+                hdr_chksum_local, hdr_chksum);
         }
 
         switch (decoder_state) {
