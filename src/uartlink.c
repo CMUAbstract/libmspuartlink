@@ -174,6 +174,10 @@ unsigned uartlink_receive(uint8_t *payload)
                     } else {
                         LOG("uartlink: finished receiving pkt: len %u\r\n", rx_payload_len);
                         rx_pkt_len = rx_payload_len;
+
+                        // reset decoder
+                        rx_payload_len = 0;
+                        decoder_state = DECODER_STATE_HEADER;
                     }
                 } else if (rx_payload_len == UARTLINK_MAX_PAYLOAD_SIZE) {
                     LOG("uartlink: payload too long\r\n");
