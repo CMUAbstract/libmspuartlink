@@ -1,8 +1,5 @@
 LIB = libmspuartlink
 
-include ../Makefile.config
-include ../Makefile.options
-
 OBJECTS = \
 	uartlink.o \
 
