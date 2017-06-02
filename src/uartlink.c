@@ -146,17 +146,22 @@ unsigned uartlink_receive(uint8_t *payload)
 
                 unsigned hdr_chksum_local = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
                 if (hdr_chksum_local == header.typed.hdr_chksum) {
-                    LOG("hdr 0x%02x: size %u | chksum: hdr 0x%02x pay 0x%02x\r\n",
-                        header.raw, header.typed.size,
-                        header.typed.hdr_chksum, header.typed.pay_chksum);
+                    if (header.typed.size > 0) {
+                        LOG("hdr 0x%02x: size %u | chksum: hdr 0x%02x pay 0x%02x\r\n",
+                            header.raw, header.typed.size,
+                            header.typed.hdr_chksum, header.typed.pay_chksum);
 
-                    rx_header = header.typed;
-                    rx_payload_len = 0; // init packet
-                    CRCINIRES = 0xFFFF; // initialize checksum'er for payload
-                    decoder_state = DECODER_STATE_PAYLOAD;
+                        rx_header = header.typed;
+                        rx_payload_len = 0; // init packet
+                        CRCINIRES = 0xFFFF; // initialize checksum'er for payload
+                        decoder_state = DECODER_STATE_PAYLOAD;
+                    } else {
+                        LOG("uartlink: finished receiving pkt: len %u\r\n", rx_payload_len);
+                        rx_pkt_len = 0;
+                    }
                 } else {
                     LOG("uartlink: hdr chksum mismatch (0x%02x != 0x%02x)\r\n",
-                        hdr_chksum_local, hdr_chksum);
+                        hdr_chksum_local, header.typed.hdr_chksum);
                 }
                 break;
             }
@@ -176,6 +181,10 @@ unsigned uartlink_receive(uint8_t *payload)
                     } else {
                         LOG("uartlink: finished receiving pkt: len %u\r\n", rx_payload_len);
                         rx_pkt_len = rx_payload_len;
+
+                        // reset decoder
+                        rx_payload_len = 0;
+                        decoder_state = DECODER_STATE_HEADER;
                     }
                 } else if (rx_payload_len == UARTLINK_MAX_PAYLOAD_SIZE) {
                     LOG("uartlink: payload too long\r\n");
