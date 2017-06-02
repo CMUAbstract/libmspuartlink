@@ -35,7 +35,7 @@ static void uartlink_configure()
 #ifdef LIBMSPUARTLINK_PIN_RX_PORT
 void uartlink_open_rx()
 {
-    GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN);
+    UART_SET_SEL(LIBMSPUARTLINK_PIN_RX_PORT, BIT(LIBMSPUARTLINK_PIN_RX_PIN));
     uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE;
 }
@@ -44,7 +44,7 @@ void uartlink_open_rx()
 #ifdef LIBMSPUARTLINK_PIN_TX_PORT
 void uartlink_open_tx()
 {
-    GPIO(LIBMSPUARTLINK_PIN_TX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_TX_PIN);
+    UART_SET_SEL(LIBMSPUARTLINK_PIN_TX_PORT, BIT(LIBMSPUARTLINK_PIN_TX_PIN));
     uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
 }
@@ -54,7 +54,7 @@ void uartlink_open_tx()
 // bidirectional (not implemenented)
 void uartlink_open()
 {
-    GPIO(LIBMSPUARTLINK_PIN_RX_PORT, SEL) |= BIT(LIBMSPUARTLINK_PIN_RX_PIN) | BIT(LIBMSPUARTLINK_PIN_TX_PIN);
+    UART_SET_SEL(LIBMSPUARTLINK_PIN_RX_PORT, BIT(LIBMSPUARTLINK_PIN_RX_PIN) | BIT(LIBMSPUARTLINK_PIN_TX_PIN));
     uartlink_configure();
     UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE | UCTXIE;
 }
@@ -171,10 +171,10 @@ unsigned uartlink_receive(uint8_t *payload)
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
 {
-    switch(__even_in_range(UART(LIBMSPUARTLINK_UART_IDX, IV),USCI_UCTXIFG)) {
-        case USCI_UCTXIFG:
+    switch(__even_in_range(UART(LIBMSPUARTLINK_UART_IDX, IV),0x08)) {
+        case UART_INTFLAG(TXIFG):
             break; // nothing to do, main thread is sleeping, so just wakeup
-        case USCI_UCRXIFG:                      // Vector 2 - RXIFG
+        case UART_INTFLAG(RXIFG):
         {
             P3OUT |= BIT2;
 
