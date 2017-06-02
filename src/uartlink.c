@@ -94,7 +94,7 @@ void uartlink_send(uint8_t *payload, unsigned len)
     // Payload checksum
     CRCINIRES = 0xFFFF; // initialize checksumer
     for (int i = 0; i < len; ++i) {
-        CRCDI = *(payload + i);
+        CRCDI_L = *(payload + i);
     }
     uint8_t pay_chksum = CRCINIRES & UARTLINK_PAYLOAD_CHKSUM_MASK;
 
@@ -103,7 +103,7 @@ void uartlink_send(uint8_t *payload, unsigned len)
                                        .hdr_chksum = 0 /* to be filled in shortly */ } };
 
     CRCINIRES = 0xFFFF; // initialize checksumer
-    CRCDI = header.raw;
+    CRCDI_L = header.raw;
     header.typed.hdr_chksum = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
 
     send_byte(header.raw);
@@ -133,7 +133,7 @@ unsigned uartlink_receive(uint8_t *payload)
         header_typed.hdr_chksum = 0; // for checking header checksum
 
         CRCINIRES = 0xFFFF; // initialize checksum'er for header
-        CRCDI = header.raw;
+        CRCDI_L = header.raw;
         unsigned hdr_chksum_local = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
         if (hdr_chksum_local == hdr_chksum) {
             rx_header = header.typed;
@@ -153,7 +153,7 @@ unsigned uartlink_receive(uint8_t *payload)
             case DECODER_STATE_PAYLOAD:
                 // assert: pkt.header.size < UARTLINK_MAX_PAYLOAD_SIZE
                 payload[rx_payload_len++] = rx_byte;
-                CRCDI = rx_byte;
+                CRCDI_L = rx_byte;
                 if (rx_payload_len == UARTLINK_MAX_PAYLOAD_SIZE) {
                     // check payload checksum
                     uint8_t rx_payload_chksum = CRCINIRES & UARTLINK_PAYLOAD_CHKSUM_MASK;
