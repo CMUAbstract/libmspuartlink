@@ -17,6 +17,9 @@ static uint8_t rx_fifo[RX_FIFO_SIZE];
 static unsigned rx_fifo_head = 0;
 static unsigned rx_fifo_tail = 0;
 
+static uint8_t *tx_data;
+static unsigned tx_len;
+
 static decoder_state_t decoder_state = DECODER_STATE_HEADER;
 static unsigned rx_payload_len = 0;
 static ul_header_t rx_header;
@@ -47,7 +50,6 @@ void uartlink_open_tx()
 {
     UART_SET_SEL(LIBMSPUARTLINK_PIN_TX_PORT, BIT(LIBMSPUARTLINK_PIN_TX_PIN));
     uartlink_configure();
-    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
 }
 #endif // LIBMSPUARTLINK_PIN_TX_PORT
 
@@ -57,7 +59,7 @@ void uartlink_open()
 {
     UART_SET_SEL(LIBMSPUARTLINK_PIN_RX_PORT, BIT(LIBMSPUARTLINK_PIN_RX_PIN) | BIT(LIBMSPUARTLINK_PIN_TX_PIN));
     uartlink_configure();
-    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE | UCTXIE;
+    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCRXIE;
 }
 #endif // LIBMSPUARTLINK_PIN_{TX && RX}_PORT
 
@@ -77,16 +79,8 @@ static inline void uartlink_enable_interrupt()
 }
 
 #ifdef LIBMSPUARTLINK_PIN_TX_PORT
-static inline void send_byte(uint8_t b)
+static inline void send_byte(uint8_t *buf, unsigned len)
 {
-    // classic lock-check-sleep pattern
-    __disable_interrupt();
-    UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = b;
-    while (!(UART(LIBMSPUARTLINK_UART_IDX, IFG) & UCTXIFG)) {
-        __bis_SR_register(LPM0_bits + GIE); // will wakeup on TX int
-        __disable_interrupt();
-    }
-    __enable_interrupt();
 }
 
 void uartlink_send(uint8_t *payload, unsigned len)
@@ -106,9 +100,22 @@ void uartlink_send(uint8_t *payload, unsigned len)
     CRCDI_L = header.raw;
     header.typed.hdr_chksum = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
 
-    send_byte(header.raw);
-    for (int i = 0; i < len; ++i)
-        send_byte(*(payload + i));
+    // Setup pointers for the ISR
+    tx_data = payload;
+    tx_len = len;
+    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
+    UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = header.raw; // first byte, clears IFG
+
+    // Sleep, while ISR TXes the remaining bytes
+    //
+    // We have to disable TX int from ISR, otherwise, will enter infinite ISR loop.
+    // So, we might as well use it as the sleep flag.
+    __disable_interrupt(); // classic lock-check-(sleep+unlock)-lock pattern
+    while (UART(LIBMSPUARTLINK_UART_IDX, IE) & UCTXIE) {
+        __bis_SR_register(LPM0_bits + GIE); // will wakeup after ISR TXes last byte
+        __disable_interrupt();
+    }
+    __enable_interrupt();
 }
 #endif // LIBMSPUARTLINK_PIN_TX_PORT
 
@@ -190,6 +197,12 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
 {
     switch(__even_in_range(UART(LIBMSPUARTLINK_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
+            if (tx_len--) {
+                UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = *tx_data++;
+            } else { // last byte got done
+                UART(LIBMSPUARTLINK_UART_IDX, IE) &= ~UCTXIE;
+                __bic_SR_register_on_exit(LPM4_bits); // wakeup
+            }
             break; // nothing to do, main thread is sleeping, so just wakeup
         case UART_INTFLAG(RXIFG):
         {
@@ -205,10 +218,10 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
             }
 
             P3OUT &= ~BIT2;
+            __bic_SR_register_on_exit(LPM4_bits); // wakeup
             break;
         }
         default:
             break;
     }
-    __bic_SR_register_on_exit(LPM4_bits); // wakeup
 }
