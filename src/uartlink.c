@@ -124,32 +124,32 @@ unsigned uartlink_receive(uint8_t *payload)
 
         LOG("uartlink: rcved: %02x\r\n", rx_byte);
 
-        // Attempt to interpret the incoming byte as a header,
-        // even if we are parsing payload. Sender ensures that
-        // header cannot appear inside a payload byte, using
-        // an escaping scheme (TODO).
-        ul_header_ut header = { .raw = rx_byte };
-        unsigned hdr_chksum = header.typed.hdr_chksum;
-        header_typed.hdr_chksum = 0; // for checking header checksum
-
-        CRCINIRES = 0xFFFF; // initialize checksum'er for header
-        CRCDI_L = header.raw;
-        unsigned hdr_chksum_local = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
-        if (hdr_chksum_local == hdr_chksum) {
-            rx_header = header.typed;
-            rx_payload_len = 0; // init packet
-            CRCINIRES = 0xFFFF; // initialize checksum'er for payload
-            decoder_state = DECODER_STATE_PAYLOAD;
-        } else {
-            LOG("uartlink: hdr chksum mismatch (0x%02x != 0x%02x)\r\n",
-                hdr_chksum_local, hdr_chksum);
-        }
-
         switch (decoder_state) {
-            case DECODER_STATE_HEADER:
-                // the byte was not a valid header, and we weren't parsing payload
-                LOG("uartlink: rxed byted not a valid header: %02x\r\n", rx_byte);
+            case DECODER_STATE_HEADER: {
+
+                ul_header_ut header = { .raw = rx_byte };
+
+                unsigned hdr_chksum = header.typed.hdr_chksum;
+                header.typed.hdr_chksum = 0; // for checking header checksum
+
+                CRCINIRES = 0xFFFF; // initialize checksum'er for header
+                CRCDI_L = header.raw;
+                unsigned hdr_chksum_local = CRCINIRES & UARTLINK_HDR_CHKSUM_MASK;
+                if (hdr_chksum_local == hdr_chksum) {
+                    LOG("hdr 0x%02x: size %u | chksum: hdr 0x%02x pay 0x%02x\r\n",
+                        header.raw, header.typed.size,
+                        header.typed.hdr_chksum, header.typed.pay_chksum);
+
+                    rx_header = header.typed;
+                    rx_payload_len = 0; // init packet
+                    CRCINIRES = 0xFFFF; // initialize checksum'er for payload
+                    decoder_state = DECODER_STATE_PAYLOAD;
+                } else {
+                    LOG("uartlink: hdr chksum mismatch (0x%02x != 0x%02x)\r\n",
+                        hdr_chksum_local, hdr_chksum);
+                }
                 break;
+            }
             case DECODER_STATE_PAYLOAD:
                 // assert: pkt.header.size < UARTLINK_MAX_PAYLOAD_SIZE
                 payload[rx_payload_len++] = rx_byte;
