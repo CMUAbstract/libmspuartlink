@@ -6,9 +6,10 @@
 // We don't need any type ID, all packets are the same, because all that the
 // radio server supports is pkts to be transmitted (no config cmds, etc.)
 typedef struct __attribute__((packed)) {
-    unsigned size:4;
-    unsigned pay_chksum:2;
+    // Note: little-endian means that field order in memory is opposite of order here
     unsigned hdr_chksum:2;
+    unsigned pay_chksum:2;
+    unsigned size:4;
 } ul_header_t;
 
 #define UARTLINK_HDR_CHKSUM_MASK  0x0003 /* must match the bitfield len */
