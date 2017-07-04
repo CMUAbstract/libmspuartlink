@@ -115,6 +115,9 @@ void uartlink_send(uint8_t *payload, unsigned len)
         __disable_interrupt();
     }
     __enable_interrupt();
+
+    // TXIE is set before the last byte has finished transmitting
+    while (UART(LIBMSPUARTLINK_UART_IDX, STATW) & UCBUSY);
 }
 #endif // LIBMSPUARTLINK_PIN_TX_PORT
 
