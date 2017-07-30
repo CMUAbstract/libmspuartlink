@@ -8,14 +8,14 @@
 typedef struct __attribute__((packed)) {
     // Note: little-endian means that field order in memory is opposite of order here
     unsigned hdr_chksum:2;
-    unsigned pay_chksum:2;
-    unsigned size:4;
+    unsigned pay_chksum:1;
+    unsigned size:5;
 } ul_header_t;
 
-#define UARTLINK_HDR_CHKSUM_MASK  0x0003 /* must match the bitfield len */
-#define UARTLINK_PAYLOAD_CHKSUM_MASK 0x0003 /* must match the bitfield len */
+#define UARTLINK_HDR_CHKSUM_MASK  0x03 /* must match the bitfield len */
+#define UARTLINK_PAYLOAD_CHKSUM_MASK 0x01 /* must match the bitfield len */
 
-#define UARTLINK_MAX_PAYLOAD_SIZE 15 /* size is 4-bit */
+#define UARTLINK_MAX_PAYLOAD_SIZE 31 /* size is 5-bit */
 
 typedef union __attribute__((packed)) {
     ul_header_t typed;
