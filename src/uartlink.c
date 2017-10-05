@@ -214,8 +214,6 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
             break; // nothing to do, main thread is sleeping, so just wakeup
         case UART_INTFLAG(RXIFG):
         {
-            P3OUT |= BIT2;
-
             rx_fifo[rx_fifo_tail] = UART(LIBMSPUARTLINK_UART_IDX, RXBUF);
             rx_fifo_tail = (rx_fifo_tail + 1) & RX_FIFO_SIZE_MASK; // wrap-around (assumes size is power of 2)
 
@@ -225,7 +223,6 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
                 rx_fifo_tail = (rx_fifo_tail - 1) & RX_FIFO_SIZE_MASK; // wrap-around (assumes size is power of 2)
             }
 
-            P3OUT &= ~BIT2;
             __bic_SR_register_on_exit(LPM4_bits); // wakeup
             break;
         }
