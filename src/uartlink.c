@@ -1,4 +1,5 @@
 #include <msp430.h>
+#include <stdbool.h>
 
 #include <libio/console.h>
 #include <libmsp/periph.h>
@@ -19,6 +20,7 @@ static unsigned rx_fifo_tail = 0;
 
 static uint8_t *tx_data;
 static unsigned tx_len;
+static volatile bool tx_finished;
 
 static decoder_state_t decoder_state = DECODER_STATE_HEADER;
 static unsigned rx_payload_len = 0;
@@ -102,15 +104,14 @@ void uartlink_send(uint8_t *payload, unsigned len)
     // Setup pointers for the ISR
     tx_data = payload;
     tx_len = len;
-    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
+    tx_finished = false;
+
     UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = header.raw; // first byte, clears IFG
+    UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXIE;
 
     // Sleep, while ISR TXes the remaining bytes
-    //
-    // We have to disable TX int from ISR, otherwise, will enter infinite ISR loop.
-    // So, we might as well use it as the sleep flag.
     __disable_interrupt(); // classic lock-check-(sleep+unlock)-lock pattern
-    while (UART(LIBMSPUARTLINK_UART_IDX, IE) & UCTXIE) {
+    while (!tx_finished) {
         __bis_SR_register(LPM0_bits + GIE); // will wakeup after ISR TXes last byte
         __disable_interrupt();
     }
@@ -205,12 +206,27 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
 {
     switch(__even_in_range(UART(LIBMSPUARTLINK_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
+#if defined(__MSP_USCI__)
             if (tx_len--) {
                 UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = *tx_data++;
             } else { // last byte got done
-                UART(LIBMSPUARTLINK_UART_IDX, IE) &= ~UCTXIE;
+                tx_finished = true;
                 __bic_SR_register_on_exit(LPM4_bits); // wakeup
             }
+#elif defined(__MSP_EUSCI__)
+            if (tx_len > 0) {
+                UART(LIBMSPUARTLINK_UART_IDX, TXBUF) = *tx_data++;
+            } else { // tx_len == 0: TXBUF ready to accept byte after last
+                UART(LIBMSPUARTLINK_UART_IDX, IE) &= ~UCTXIE;
+
+                // The next TXCPTIFG must refer to the last byte
+                UART(LIBMSPUARTLINK_UART_IDX, IFG) &= ~UCTXCPTIFG;
+                UART(LIBMSPUARTLINK_UART_IDX, IE) |= UCTXCPTIE;
+            }
+            --tx_len;
+#else // __MSP_*__
+#error Unsupported UART type: see PERIPHDEFS for your chip in maker/Makefile.board
+#endif // __MSP_*__
             break; // nothing to do, main thread is sleeping, so just wakeup
         case UART_INTFLAG(RXIFG):
         {
@@ -226,6 +242,16 @@ void UART_ISR(LIBMSPUARTLINK_UART_IDX) (void)
             __bic_SR_register_on_exit(LPM4_bits); // wakeup
             break;
         }
+#if defined(__MSP_EUSCI__)
+        case UART_INTFLAG(TXCPTIFG):
+            tx_finished = true;
+            __bic_SR_register_on_exit(LPM4_bits); // wakeup
+            break;
+#elif defined(__MSP_USCI__)
+        // nothing
+#else // __MSP_*__
+#error Unsupported UART type: see PERIPHDEFS for your chip in maker/Makefile.board
+#endif // __MSP_*__
         default:
             break;
     }
