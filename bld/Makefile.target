@@ -1,0 +1,14 @@
+# Not sure if we can plop this in and build it with clang, so for now, just
+# compile with binaries built by gcc... 
+ifeq ($(TOOLCHAIN),gcc)
+DEPS += libmspuartlink
+else # TOOLCHAIN != gcc
+
+# libmspware is special because it has to be compiled by GCC, not Clang,
+# even if the app is built with Clang
+CFLAGS += -I$(LIB_ROOT)/libmspuartlink/src/include
+LFLAGS += -L$(LIB_ROOT)/libmspuartlink/bld/gcc
+LIBS += -lmspuartlink
+
+endif # TOOLCHAIN != gcc
+
