@@ -27,24 +27,33 @@ typedef struct {
     uint8_t payload[UARTLINK_MAX_PAYLOAD_SIZE];
 } ul_pkt_t;
 
-#ifdef LIBMSPUARTLINK_PIN_RX_PORT
-void uartlink_open_rx();
+#if defined(LIBMSPUARTLINK0_PIN_RX_PORT) || \
+defined(LIBMSPUARTLINK1_PIN_RX_PORT) || \
+defined(LIBMSPUARTLINK2_PIN_RX_PORT)
+void uartlink_open_rx(size_t port);
 #endif // LIBMSPUARTLINK_PIN_RX_PORT
 
-#ifdef LIBMSPUARTLINK_PIN_TX_PORT
-void uartlink_open_tx();
+#if defined(LIBMSPUARTLINK0_PIN_TX_PORT) || \
+defined(LIBMSPUARTLINK1_PIN_TX_PORT) || \
+defined(LIBMSPUARTLINK2_PIN_TX_PORT)
+void uartlink_open_tx(size_t port);
 #endif // LIBMSPUARTLINK_PIN_TX_PORT
 
-#if defined(LIBMSPUARTLINK_PIN_TX_PORT) && defined(LIBMSPUARTLINK_PIN_RX_PORT)
-void uartlink_open();
+#if (defined(LIBMSPUARTLINK0_PIN_TX_PORT) && \
+defined(LIBMSPUARTLINK0_PIN_RX_PORT)) ||  \
+(defined(LIBMSPUARTLINK1_PIN_TX_PORT) && \
+defined(LIBMSPUARTLINK1_PIN_RX_PORT)) || \
+(defined(LIBMSPUARTLINK2_PIN_TX_PORT) && \
+defined(LIBMSPUARTLINK2_PIN_RX_PORT))
+void uartlink_open(size_t port);
 #endif // RX && TX
 
-void uartlink_close();
+void uartlink_close(size_t port);
 
 // Returns length of received data, or zero if no pkt decoded
-unsigned uartlink_receive(uint8_t *payload);
+unsigned uartlink_receive(size_t port, uint8_t *payload);
 
 // Pushes bytes over UART synchronously (sleeps as much as possible)
-void uartlink_send(uint8_t *payload, unsigned len);
+void uartlink_send(size_t port, uint8_t *payload, unsigned len);
 
 #endif // LIBMSPUARTLINK_UARTLINK_H
