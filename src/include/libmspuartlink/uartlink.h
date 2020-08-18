@@ -53,6 +53,10 @@ void uartlink_close(size_t port);
 // Returns length of received data, or zero if no pkt decoded
 unsigned uartlink_receive(size_t port, uint8_t *payload);
 
+// Same as uartlink_receive, except we don't encode a checksum or use nice
+// header format, so we need to read in a certain number of bytes
+unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size);
+
 // Pushes bytes over UART synchronously (sleeps as much as possible)
 void uartlink_send(size_t port, uint8_t *payload, unsigned len);
 

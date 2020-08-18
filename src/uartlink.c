@@ -390,6 +390,9 @@ void uartlink_send(size_t port, uint8_t *payload, unsigned len)
     }
 }
 
+
+
+
 // Should be called whenever MCU wakes up, from the context of a main loop
 // precondition: payload points to a buffer of at least UARTLINK_MAX_PAYLOAD_SIZE
 unsigned uartlink_receive(size_t port, uint8_t *payload)
@@ -466,6 +469,42 @@ unsigned uartlink_receive(size_t port, uint8_t *payload)
                     decoder_state[port] = DECODER_STATE_HEADER;
                 }
                 break;
+        }
+
+        uartlink_disable_interrupt(port); // classic: check-and-...-sleep pattern
+    }
+    uartlink_enable_interrupt(port);
+    return rx_pkt_len;
+}
+
+// Similar operation to uartlink_receive but without the checksum and we use the
+// last argument to indicate how many bytes to read
+unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
+{
+    unsigned rx_pkt_len = 0;
+
+    uartlink_disable_interrupt(port);
+    // keep processing fifo content until empty, or until got pkt
+    while (rx_fifo_head[port] != rx_fifo_tail[port] && !rx_pkt_len) {
+        uint8_t rx_byte = rx_fifo[port][rx_fifo_head[port]++];
+        rx_fifo_head[port] &= RX_FIFO_SIZE_MASK; // wrap around
+        uartlink_enable_interrupt(port);
+
+        LOG("uartlink: rcved: %02x\r\n", rx_byte);
+
+        // assert: pkt.header.size < UARTLINK_MAX_PAYLOAD_SIZE
+        payload[rx_payload_len[port]++] = rx_byte;
+        if (rx_payload_len[port] == size) {
+                LOG("uartlink: finished receiving pkt: len %u\r\n",
+                rx_payload_len[port]);
+                rx_pkt_len = rx_payload_len[port];
+                // reset decoder
+                rx_payload_len[port] = 0;
+        }
+        else if (rx_payload_len[port] == UARTLINK_MAX_PAYLOAD_SIZE) {
+            LOG("uartlink: payload too long\r\n");
+            // reset decoder
+            rx_payload_len[port] = 0;
         }
 
         uartlink_disable_interrupt(port); // classic: check-and-...-sleep pattern
