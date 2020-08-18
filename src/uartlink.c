@@ -112,14 +112,45 @@ void uartlink_open_tx(size_t port)
     }
 }
 
-//#if defined(LIBMSPUARTLINK_PIN_TX_PORT) && defined(LIBMSPUARTLINK_PIN_RX_PORT)
-#if 0
-// bidirectional (not implemenented)
+#if defined(LIBMSPUARTLINK_PIN_TX_PORT) && defined(LIBMSPUARTLINK_PIN_RX_PORT)
+//TODO fix the EUSCI_A<x>_BASE thing..
 void uartlink_open(size_t port)
 {
-    UART_SET_SEL(LIBMSPUARTLINK_PIN_RX_PORT, BIT(LIBMSPUARTLINK_PIN_RX_PIN) | BIT(LIBMSPUARTLINK_PIN_TX_PIN));
-    uartlink_configure();
-    UART(port, IE) |= UCRXIE;
+  switch(port) {
+    case LIBMSPUARTLINK0_UART_IDX:
+
+      UART_SET_SEL(LIBMSPUARTLINK0_PIN_RX_PORT, BIT(LIBMSPUARTLINK0_PIN_RX_PIN) |
+        BIT(LIBMSPUARTLINK0_PIN_TX_PIN));
+      uartlink_configure(port);
+
+      EUSCI_A_UART_clearInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+
+      // Enable USCI_A0 RX interrupt
+      EUSCI_A_UART_enableInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+      break;
+    case LIBMSPUARTLINK1_UART_IDX:
+      UART_SET_SEL(LIBMSPUARTLINK1_PIN_RX_PORT, BIT(LIBMSPUARTLINK1_PIN_RX_PIN) |
+        BIT(LIBMSPUARTLINK1_PIN_TX_PIN));
+      uartlink_configure(port);
+
+      EUSCI_A_UART_clearInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+
+      // Enable USCI_A0 RX interrupt
+      EUSCI_A_UART_enableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+      break;
+    case LIBMSPUARTLINK2_UART_IDX:
+      UART_SET_SEL(LIBMSPUARTLINK2_PIN_RX_PORT, BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
+        BIT(LIBMSPUARTLINK2_PIN_TX_PIN));
+      uartlink_configure(port);
+
+      EUSCI_A_UART_clearInterrupt(EUSCI_A2_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+
+      // Enable USCI_A0 RX interrupt
+      EUSCI_A_UART_enableInterrupt(EUSCI_A2_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+      break;
+    default:
+      break;
+  }
 }
 #endif // LIBMSPUARTLINK_PIN_{TX && RX}_PORT
 
@@ -180,6 +211,89 @@ static inline void uartlink_enable_interrupt(size_t port)
 static inline void send_byte(uint8_t *buf, unsigned len)
 {
 }
+
+// Just like uartlinke_send but without the checksum and packetizing
+void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len)
+{
+
+    // Setup pointers for the ISR
+    tx_data[port] = payload;
+    tx_len[port] = len;
+    switch (port) {
+      case LIBMSPUARTLINK0_UART_IDX:
+        UART(LIBMSPUARTLINK0_UART_IDX, IE) |= UCTXIE;
+        UART(LIBMSPUARTLINK0_UART_IDX, TXBUF) = *tx_data[port]; // first byte, clears IFG
+
+        // Sleep, while ISR TXes the remaining bytes
+        //
+        // We have to disable TX int from ISR, otherwise, will enter infinite ISR loop.
+        // So, we might as well use it as the sleep flag.
+        __disable_interrupt(); // classic lock-check-(sleep+unlock)-lock pattern
+        while (UART(LIBMSPUARTLINK0_UART_IDX, IE) & UCTXIE) {
+            __bis_SR_register(LPM0_bits + GIE); // will wakeup after ISR TXes last byte
+            __disable_interrupt();
+        }
+        __enable_interrupt();
+
+        // TXIE is set before the last byte has finished transmitting
+        while (UART(LIBMSPUARTLINK0_UART_IDX, STATW) & UCBUSY);
+      break;
+      case LIBMSPUARTLINK1_UART_IDX:
+        UART(LIBMSPUARTLINK1_UART_IDX, IE) |= UCTXIE;
+        UART(LIBMSPUARTLINK1_UART_IDX, TXBUF) = *tx_data[port]; // first byte, clears IFG
+
+        // Sleep, while ISR TXes the remaining bytes
+        //
+        // We have to disable TX int from ISR, otherwise, will enter infinite ISR loop.
+        // So, we might as well use it as the sleep flag.
+        __disable_interrupt(); // classic lock-check-(sleep+unlock)-lock pattern
+        while (UART(LIBMSPUARTLINK1_UART_IDX, IE) & UCTXIE) {
+            __bis_SR_register(LPM0_bits + GIE); // will wakeup after ISR TXes last byte
+            __disable_interrupt();
+        }
+        __enable_interrupt();
+
+        // TXIE is set before the last byte has finished transmitting
+        while (UART(LIBMSPUARTLINK1_UART_IDX, STATW) & UCBUSY);
+      break;
+      case LIBMSPUARTLINK2_UART_IDX:
+        UART(LIBMSPUARTLINK2_UART_IDX, IE) |= UCTXIE;
+        UART(LIBMSPUARTLINK2_UART_IDX, TXBUF) = *tx_data[port];// first byte, clears IFG
+
+        // Sleep, while ISR TXes the remaining bytes
+        //
+        // We have to disable TX int from ISR, otherwise, will enter infinite ISR loop.
+        // So, we might as well use it as the sleep flag.
+        __disable_interrupt(); // classic lock-check-(sleep+unlock)-lock pattern
+        while (UART(LIBMSPUARTLINK2_UART_IDX, IE) & UCTXIE) {
+            __bis_SR_register(LPM0_bits + GIE); // will wakeup after ISR TXes last byte
+            __disable_interrupt();
+        }
+        __enable_interrupt();
+
+        // TXIE is set before the last byte has finished transmitting
+        while (UART(LIBMSPUARTLINK2_UART_IDX, STATW) & UCBUSY);
+      break;
+      default:
+        UART(LIBMSPUARTLINK2_UART_IDX, IE) |= UCTXIE;
+        UART(LIBMSPUARTLINK2_UART_IDX, TXBUF) = *tx_data[port]; // first byte, clears IFG
+
+        // Sleep, while ISR TXes the remaining bytes
+        //
+        // We have to disable TX int from ISR, otherwise, will enter infinite ISR loop.
+        // So, we might as well use it as the sleep flag.
+        __disable_interrupt(); // classic lock-check-(sleep+unlock)-lock pattern
+        while (UART(LIBMSPUARTLINK2_UART_IDX, IE) & UCTXIE) {
+            __bis_SR_register(LPM0_bits + GIE); // will wakeup after ISR TXes last byte
+            __disable_interrupt();
+        }
+        __enable_interrupt();
+
+        // TXIE is set before the last byte has finished transmitting
+        while (UART(LIBMSPUARTLINK1_UART_IDX, STATW) & UCBUSY);
+    }
+}
+
 
 void uartlink_send(size_t port, uint8_t *payload, unsigned len)
 {
@@ -433,7 +547,6 @@ void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
     }
 }
 #endif
-
 
 #ifdef LIBMSPUARTLINK2_UART_IDX
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK2_UART_IDX))))

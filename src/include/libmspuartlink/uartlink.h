@@ -56,4 +56,7 @@ unsigned uartlink_receive(size_t port, uint8_t *payload);
 // Pushes bytes over UART synchronously (sleeps as much as possible)
 void uartlink_send(size_t port, uint8_t *payload, unsigned len);
 
+// Same as uartlink_send, except we don't encode a checksum
+void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len);
+
 #endif // LIBMSPUARTLINK_UARTLINK_H
