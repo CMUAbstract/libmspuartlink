@@ -2,7 +2,7 @@
 
 #include <libio/console.h>
 #include <libmsp/periph.h>
-
+#include <libmspware/driverlib.h>
 #include "uartlink.h"
 
 typedef enum {
@@ -112,8 +112,13 @@ void uartlink_open_tx(size_t port)
     }
 }
 
-#if defined(LIBMSPUARTLINK_PIN_TX_PORT) && defined(LIBMSPUARTLINK_PIN_RX_PORT)
-//TODO fix the EUSCI_A<x>_BASE thing..
+#if (defined(LIBMSPUARTLINK0_PIN_TX_PORT) && \
+defined(LIBMSPUARTLINK0_PIN_RX_PORT)) ||  \
+(defined(LIBMSPUARTLINK1_PIN_TX_PORT) && \
+defined(LIBMSPUARTLINK1_PIN_RX_PORT)) || \
+(defined(LIBMSPUARTLINK2_PIN_TX_PORT) && \
+defined(LIBMSPUARTLINK2_PIN_RX_PORT))
+//TODO fix the EUSCI_A<x>_BASE so it's not hard coded
 void uartlink_open(size_t port)
 {
   switch(port) {
@@ -152,7 +157,7 @@ void uartlink_open(size_t port)
       break;
   }
 }
-#endif // LIBMSPUARTLINK_PIN_{TX && RX}_PORT
+#endif // Both tx and rx ports are defined
 
 void uartlink_close(size_t port)
 {
@@ -222,7 +227,8 @@ void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len)
     switch (port) {
       case LIBMSPUARTLINK0_UART_IDX:
         UART(LIBMSPUARTLINK0_UART_IDX, IE) |= UCTXIE;
-        UART(LIBMSPUARTLINK0_UART_IDX, TXBUF) = *tx_data[port]; // first byte, clears IFG
+        UART(LIBMSPUARTLINK0_UART_IDX, TXBUF) = *tx_data[port]++; // first byte, clears IFG
+        tx_len[port]--;
 
         // Sleep, while ISR TXes the remaining bytes
         //
@@ -528,8 +534,9 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
             break; // nothing to do, main thread is sleeping, so just wakeup
         case UART_INTFLAG(RXIFG):
         {
-
+            // Put data at back of buffer
             rx_fifo[0][rx_fifo_tail[0]] = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
+            // Increment buffer size
             rx_fifo_tail[0] = (rx_fifo_tail[0] + 1) & RX_FIFO_SIZE_MASK; //
             //wrap-around (assumes size is power of 2)
 
