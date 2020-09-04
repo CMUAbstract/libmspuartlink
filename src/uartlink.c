@@ -2,6 +2,7 @@
 
 #include <libio/console.h>
 #include <libmsp/periph.h>
+#include <libmsp/mem.h>
 #include <libmspware/driverlib.h>
 #include "uartlink.h"
 
@@ -10,10 +11,12 @@ typedef enum {
     DECODER_STATE_PAYLOAD,
 } decoder_state_t;
 
-#define RX_FIFO_SIZE 32
-#define RX_FIFO_SIZE_MASK 0x1f
+#define RX_FIFO_SIZE 511
+#define RX_FIFO_SIZE_MASK 0x1ff
 
-static uint8_t rx_fifo[3][RX_FIFO_SIZE];
+// We force this out into NVM for linking, but we'll let the head/tail be zero'd
+// on reboots
+static __nv uint8_t rx_fifo[3][RX_FIFO_SIZE];
 static unsigned rx_fifo_head[3] = {0};
 static unsigned rx_fifo_tail[3] = {0};
 
@@ -519,7 +522,7 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
     return rx_pkt_len;
 }
 
-#ifdef LIBMSPUARTLINK0_UART_IDX
+#if defined(LIBMSPUARTLINK0_UART_IDX) && ~defined(CONSOLE)
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK0_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 {
