@@ -415,7 +415,7 @@ unsigned uartlink_receive(size_t port, uint8_t *payload)
         rx_fifo_head[port] &= RX_FIFO_SIZE_MASK; // wrap around
         uartlink_enable_interrupt(port);
 
-        LOG("uartlink: rcved: %02x\r\n", rx_byte);
+        //LOG2("uartlink: rcved: %02x\r\n", rx_byte);
 
         switch (decoder_state[port]) {
             case DECODER_STATE_HEADER: {
@@ -499,7 +499,7 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
         rx_fifo_head[port] &= RX_FIFO_SIZE_MASK; // wrap around
         uartlink_enable_interrupt(port);
 
-        LOG("uartlink: rcved: %02x\r\n", rx_byte);
+        //LOG("uartlink: rcved: %02x %c\r\n", rx_byte,rx_byte);
 
         // assert: pkt.header.size < UARTLINK_MAX_PAYLOAD_SIZE
         payload[rx_payload_len[port]++] = rx_byte;
@@ -511,7 +511,7 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
                 rx_payload_len[port] = 0;
         }
         else if (rx_payload_len[port] == UARTLINK_MAX_PAYLOAD_SIZE) {
-            LOG("uartlink: payload too long\r\n");
+            LOG("uartlink: payload too long %u\r\n", rx_payload_len[port]);
             // reset decoder
             rx_payload_len[port] = 0;
         }
@@ -522,7 +522,8 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
     return rx_pkt_len;
 }
 
-#if defined(LIBMSPUARTLINK0_UART_IDX) && ~defined(CONSOLE)
+#if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
+#pragma warning "ADDING DAMN INTERRUPT"
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK0_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 {

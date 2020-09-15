@@ -12,10 +12,10 @@ typedef struct __attribute__((packed)) {
     unsigned size:5;
 } ul_header_t;
 
-#define UARTLINK_HDR_CHKSUM_MASK  0x03 /* must match the bitfield len */
+#define UARTLINK_HDR_CHKSUM_MASK  0x1FF /* must match the bitfield len */
 #define UARTLINK_PAYLOAD_CHKSUM_MASK 0x01 /* must match the bitfield len */
 
-#define UARTLINK_MAX_PAYLOAD_SIZE 31 /* size is 5-bit */
+#define UARTLINK_MAX_PAYLOAD_SIZE 511 /* size is 5-bit */
 
 typedef union __attribute__((packed)) {
     ul_header_t typed;
