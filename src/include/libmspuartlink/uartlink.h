@@ -2,6 +2,7 @@
 #define LIBMSPUARTLINK_UARTLINK_H
 
 #include <stdint.h>
+#include <libartibeus/comm.h>
 
 // We don't need any type ID, all packets are the same, because all that the
 // radio server supports is pkts to be transmitted (no config cmds, etc.)
@@ -26,6 +27,28 @@ typedef struct {
     ul_header_t header;
     uint8_t payload[UARTLINK_MAX_PAYLOAD_SIZE];
 } ul_pkt_t;
+
+typedef enum {
+  wait_esp0,
+  wait_esp1,
+  wait_len,
+  wait_cmd,
+  wait_keys
+} incoming_status_t;
+
+
+typedef enum {
+  TRANSFER_ACTIVE,
+  TRANSFER_DONE,
+} transfer_status_t;
+
+typedef struct transfer_ {
+  transfer_status_t status;
+  uint16_t transfer_len;
+} transfer;
+
+extern transfer comm_expt_link;
+extern __nv uint8_t rf_kill_count;
 
 #if defined(LIBMSPUARTLINK0_PIN_RX_PORT) || \
 defined(LIBMSPUARTLINK1_PIN_RX_PORT) || \

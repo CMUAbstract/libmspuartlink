@@ -14,6 +14,9 @@ typedef enum {
 #define RX_FIFO_SIZE 511
 #define RX_FIFO_SIZE_MASK 0x1ff
 
+__nv transfer comm_expt_link;
+__nv uint8_t rf_kill_count = 0;
+
 // We force this out into NVM for linking, but we'll let the head/tail be zero'd
 // on reboots
 static __nv uint8_t rx_fifo[3][RX_FIFO_SIZE];
@@ -220,7 +223,7 @@ static inline void send_byte(uint8_t *buf, unsigned len)
 {
 }
 
-// Just like uartlinke_send but without the checksum and packetizing
+// Just like uartlink_send but without the checksum and packetizing
 void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len)
 {
 
@@ -522,8 +525,101 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
     return rx_pkt_len;
 }
 
+//COMM UART most of the time
+// Needs to look for transfer_active and transfer_done messages.
 #if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
-#pragma warning "ADDING DAMN INTERRUPT"
+__nv incoming_status_t progress;
+__nv uint8_t incoming_cmd;
+static handle_progress(uint8_t data) {
+static uint16_t len;
+static uint8_t counter;
+static uint8_t keys[16];
+
+  switch(progress) {
+    case wait_esp0:
+      if (data == ESP_BYTE0) {
+        progress = wait_esp1;
+      }
+      break;
+    case wait_esp1:
+      if (data == ESP_BYTE1) {
+        len = 0;
+        progress = wait_len;
+      }
+      break;
+    case wait_len:
+      len = data;
+      counter = 0;
+      progress = wait_cmd;
+      break;
+    case wait_cmd:
+      if (counter == 5) {
+        if (data == EXPT_WAKE || data == RF_KILL) {
+          incoming_cmd = data;
+          progress = wait_keys;
+          counter = 0;
+        }
+        else {
+          progress = wait_esp0;
+        }
+      }
+      else {
+        counter++;
+      }
+      break;
+    case wait_keys:
+      // process keys into keys array until we reach required number for
+      // bootloader and kill
+      keys[counter] = data;
+      if (incoming_cmd == EXPT_WAKE && counter == 7) {
+        //check keys
+        int flag = 0;
+        for (int i = 0; i < 8; i++) {
+          if (keys[i] != EXPT_WAKE_KEYS[i]) {
+            flag = 1;
+            break;
+          }
+        }
+        if (flag) {
+          progress = wait_esp0;
+        }
+        else {
+          //EXPT_WAKE_OK
+        }
+      }
+      else if (incoming_cmd == RF_KILL && counter == 15) {
+        int flag = 0;
+        for (int i = 0; i < 16; i++) {
+          // check keys
+          if (keys[i] != RF_KILL_KEYS[i]) {
+            flag = 1;
+            break;
+          }
+        }
+        if (flag) {
+          progress = wait_esp0;
+        }
+        else {
+          //RF_KILL_OK
+          // Change progress first so we don't rerun this
+          progress = wait_esp0;
+          // Increment kill count
+          rf_kill_count++;
+        }
+      }
+      else {
+        counter++;
+      }
+      if (counter > 16) {
+        // This shouldn't happen!
+        progress = wait_esp0;
+      }
+      break;
+    default:
+      progress = wait_esp0;
+      break;
+  }
+}
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK0_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 {
@@ -539,7 +635,9 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
         case UART_INTFLAG(RXIFG):
         {
             // Put data at back of buffer
-            rx_fifo[0][rx_fifo_tail[0]] = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
+            uint8_t data = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
+            handle_progress(data);
+            rx_fifo[0][rx_fifo_tail[0]] = data;
             // Increment buffer size
             rx_fifo_tail[0] = (rx_fifo_tail[0] + 1) & RX_FIFO_SIZE_MASK; //
             //wrap-around (assumes size is power of 2)
@@ -561,6 +659,7 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 }
 #endif
 
+//EXPT UART most of the time
 #ifdef LIBMSPUARTLINK1_UART_IDX
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK1_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
@@ -598,6 +697,7 @@ void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
 }
 #endif
 
+//GNSS on artibeus (most of the time)
 #ifdef LIBMSPUARTLINK2_UART_IDX
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK2_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK2_UART_IDX) (void)
