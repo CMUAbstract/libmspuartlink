@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <libartibeus/comm.h>
 
+
 // We don't need any type ID, all packets are the same, because all that the
 // radio server supports is pkts to be transmitted (no config cmds, etc.)
 typedef struct __attribute__((packed)) {
@@ -33,9 +34,10 @@ typedef enum {
   wait_esp1,
   wait_len,
   wait_cmd,
-  wait_keys
+  wait_keys,
+  wait_msg,
+  wait_extra
 } incoming_status_t;
-
 
 typedef enum {
   TRANSFER_ACTIVE,
@@ -49,6 +51,9 @@ typedef struct transfer_ {
 
 extern transfer comm_expt_link;
 extern __nv uint8_t rf_kill_count;
+extern __nv char earth_msg[32];
+extern __nv incoming_status_t progress;
+extern __nv uint8_t incoming_cmd;
 
 #if defined(LIBMSPUARTLINK0_PIN_RX_PORT) || \
 defined(LIBMSPUARTLINK1_PIN_RX_PORT) || \

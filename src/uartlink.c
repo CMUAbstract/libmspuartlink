@@ -4,6 +4,8 @@
 #include <libmsp/periph.h>
 #include <libmsp/mem.h>
 #include <libmspware/driverlib.h>
+#include <libartibeus/comm.h>
+
 #include "uartlink.h"
 
 typedef enum {
@@ -530,33 +532,78 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
 #if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
 __nv incoming_status_t progress;
 __nv uint8_t incoming_cmd;
+__nv char earth_msg[32] = {'Y','I','N','Z',' ','I','S',' ',
+'J','A','G','O','F','F','S','!',' ','W','e','r','e','i','n',
+'s','p','a','c','e',' ','n','a','t'};
+
 static handle_progress(uint8_t data) {
 static uint16_t len;
 static uint8_t counter;
 static uint8_t keys[16];
-
+char uart_msg[8];
+  //uart_msg[0] = data + 48;
+  //uart_msg[1] = progress + 48;
+  //uart_msg[2] = counter + 48;
+  //uart_msg[3] = incoming_cmd + 48;
+  //uart_msg[4] = '\r';
+  //uart_msg[5] = '\n';
+  //uartlink_send_basic(0,uart_msg,6);
+  uint8_t ascii_prog;
+  ascii_prog = progress + 48;
   switch(progress) {
     case wait_esp0:
+      P1OUT |= BIT1;
+      P1DIR |= BIT1;
+      P1OUT &= ~BIT1;
       if (data == ESP_BYTE0) {
+        P1OUT |= BIT2;
+        P1DIR |= BIT2;
+        P1OUT &= ~BIT2;
         progress = wait_esp1;
+        ascii_prog = data;
+        uartlink_send_basic(0,&ascii_prog,1);
+      }
+      else {
+        uartlink_send_basic(0,&ascii_prog,1);
       }
       break;
     case wait_esp1:
+      P1OUT |= BIT2;
+      P1DIR |= BIT2;
+      P1OUT &= ~BIT2;
       if (data == ESP_BYTE1) {
         len = 0;
         progress = wait_len;
+        ascii_prog = data;
+        uartlink_send_basic(0,&ascii_prog,1);
+      }
+      else {
+        uartlink_send_basic(0,&ascii_prog,1);
       }
       break;
     case wait_len:
+      ascii_prog = data + 48;
+      uartlink_send_basic(0,&ascii_prog,1);
       len = data;
       counter = 0;
       progress = wait_cmd;
       break;
     case wait_cmd:
+      uartlink_send_basic(0,&ascii_prog,1);
       if (counter == 5) {
         if (data == EXPT_WAKE || data == RF_KILL) {
           incoming_cmd = data;
           progress = wait_keys;
+          counter = 0;
+        }
+        else if (data == ASCII) {
+          P1OUT |= BIT2;
+          P1DIR |= BIT2;
+          P1OUT |= BIT1;
+          P1DIR |= BIT1;
+          P1OUT &= ~BIT2;
+          P1OUT &= ~BIT1;
+          progress = wait_msg;
           counter = 0;
         }
         else {
@@ -568,6 +615,7 @@ static uint8_t keys[16];
       }
       break;
     case wait_keys:
+      uartlink_send_basic(0,&ascii_prog,1);
       // process keys into keys array until we reach required number for
       // bootloader and kill
       keys[counter] = data;
@@ -615,6 +663,15 @@ static uint8_t keys[16];
         progress = wait_esp0;
       }
       break;
+    case wait_msg:
+      uartlink_send_basic(0,&ascii_prog,1);
+    // We do this directly so that if it gets garbled we'll know immediately
+      earth_msg[counter] = data;
+      counter++;
+      if (counter == 32) {
+        progress = wait_esp0;
+      }
+      break;
     default:
       progress = wait_esp0;
       break;
@@ -636,6 +693,7 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
         {
             // Put data at back of buffer
             uint8_t data = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
+            // TODO see if this works...
             handle_progress(data);
             rx_fifo[0][rx_fifo_tail[0]] = data;
             // Increment buffer size
