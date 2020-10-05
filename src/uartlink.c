@@ -144,6 +144,8 @@ void uartlink_open(size_t port)
     case LIBMSPUARTLINK1_UART_IDX:
       UART_SET_SEL(LIBMSPUARTLINK1_PIN_RX_PORT, BIT(LIBMSPUARTLINK1_PIN_RX_PIN) |
         BIT(LIBMSPUARTLINK1_PIN_TX_PIN));
+      /*UART_SET_SEL(LIBMSPUARTLINK1_PIN_RX_PORT,
+        BIT(LIBMSPUARTLINK1_PIN_TX_PIN));*/
       uartlink_configure(port);
 
       EUSCI_A_UART_clearInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
@@ -532,98 +534,88 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
 #if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
 __nv incoming_status_t progress;
 __nv uint8_t incoming_cmd;
-__nv char earth_msg[32] = {'Y','I','N','Z',' ','I','S',' ',
-'J','A','G','O','F','F','S','!',' ','W','e','r','e','i','n',
+__nv char earth_msg[32] = {'a','b','c','d','e','f','g','h',
+'i','j','k','l','m','n','o','p',' ','W','e','r','e','i','n',
 's','p','a','c','e',' ','n','a','t'};
+static uint16_t prog_len = 0;
+static uint8_t prog_counter = 0;
+static uint8_t prog_keys[16] = {0};
 
 static handle_progress(uint8_t data) {
-static uint16_t len;
-static uint8_t counter;
-static uint8_t keys[16];
-char uart_msg[8];
-  //uart_msg[0] = data + 48;
-  //uart_msg[1] = progress + 48;
-  //uart_msg[2] = counter + 48;
-  //uart_msg[3] = incoming_cmd + 48;
-  //uart_msg[4] = '\r';
-  //uart_msg[5] = '\n';
-  //uartlink_send_basic(0,uart_msg,6);
   uint8_t ascii_prog;
   ascii_prog = progress + 48;
+    P1OUT |= BIT1;
+    P1DIR |= BIT1;
+    P1OUT &= ~BIT1;
   switch(progress) {
     case wait_esp0:
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
+      prog_counter = 0;
       if (data == ESP_BYTE0) {
-        P1OUT |= BIT2;
-        P1DIR |= BIT2;
-        P1OUT &= ~BIT2;
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
+        //uartlink_send_basic(0,&progress,1);
         progress = wait_esp1;
-        ascii_prog = data;
-        uartlink_send_basic(0,&ascii_prog,1);
-      }
-      else {
-        uartlink_send_basic(0,&ascii_prog,1);
       }
       break;
     case wait_esp1:
-      P1OUT |= BIT2;
-      P1DIR |= BIT2;
-      P1OUT &= ~BIT2;
+      prog_counter = 0;
       if (data == ESP_BYTE1) {
-        len = 0;
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
+        prog_len = 0;
         progress = wait_len;
-        ascii_prog = data;
-        uartlink_send_basic(0,&ascii_prog,1);
-      }
-      else {
-        uartlink_send_basic(0,&ascii_prog,1);
+        //uartlink_send_basic(0,&progress,1);
       }
       break;
     case wait_len:
-      ascii_prog = data + 48;
-      uartlink_send_basic(0,&ascii_prog,1);
-      len = data;
-      counter = 0;
+      //uartlink_send_basic(0,&progress,1);
+      P1OUT |= BIT1;
+      P1DIR |= BIT1;
+      P1OUT &= ~BIT1;
+      prog_len = data;
+      prog_counter = 0;
       progress = wait_cmd;
       break;
     case wait_cmd:
-      uartlink_send_basic(0,&ascii_prog,1);
-      if (counter == 5) {
+      if (prog_counter == 5) {
         if (data == EXPT_WAKE || data == RF_KILL) {
           incoming_cmd = data;
           progress = wait_keys;
-          counter = 0;
+          prog_counter = 0;
         }
         else if (data == ASCII) {
-          P1OUT |= BIT2;
-          P1DIR |= BIT2;
+          ascii_prog = '!';
+          progress = wait_msg;
+          //uartlink_send_basic(0,&ascii_prog,1);
           P1OUT |= BIT1;
           P1DIR |= BIT1;
-          P1OUT &= ~BIT2;
           P1OUT &= ~BIT1;
-          progress = wait_msg;
-          counter = 0;
+          prog_counter = 0;
         }
         else {
+          ascii_prog = '?';
+          //uartlink_send_basic(0,&ascii_prog,1);
           progress = wait_esp0;
         }
+          prog_counter = 0;
       }
       else {
-        counter++;
+        prog_counter++;
       }
       break;
     case wait_keys:
-      uartlink_send_basic(0,&ascii_prog,1);
-      // process keys into keys array until we reach required number for
+      ascii_prog = '[';
+      //uartlink_send_basic(0,&ascii_prog,1);
+      // process prog_keys into prog_keys array until we reach required number for
       // bootloader and kill
-      keys[counter] = data;
-      if (incoming_cmd == EXPT_WAKE && counter == 7) {
-        //check keys
+      prog_keys[prog_counter] = data;
+      if (incoming_cmd == EXPT_WAKE && prog_counter == 7) {
+        //check prog_keys
         int flag = 0;
         for (int i = 0; i < 8; i++) {
-          if (keys[i] != EXPT_WAKE_KEYS[i]) {
+          if (prog_keys[i] != EXPT_WAKE_KEYS[i]) {
             flag = 1;
             break;
           }
@@ -635,11 +627,11 @@ char uart_msg[8];
           //EXPT_WAKE_OK
         }
       }
-      else if (incoming_cmd == RF_KILL && counter == 15) {
+      else if (incoming_cmd == RF_KILL && prog_counter == 15) {
         int flag = 0;
         for (int i = 0; i < 16; i++) {
-          // check keys
-          if (keys[i] != RF_KILL_KEYS[i]) {
+          // check prog_keys
+          if (prog_keys[i] != RF_KILL_KEYS[i]) {
             flag = 1;
             break;
           }
@@ -656,19 +648,21 @@ char uart_msg[8];
         }
       }
       else {
-        counter++;
+        prog_counter++;
       }
-      if (counter > 16) {
+      if (prog_counter > 16) {
         // This shouldn't happen!
         progress = wait_esp0;
       }
       break;
     case wait_msg:
-      uartlink_send_basic(0,&ascii_prog,1);
+      //uartlink_send_basic(0,&ascii_prog,1);
     // We do this directly so that if it gets garbled we'll know immediately
-      earth_msg[counter] = data;
-      counter++;
-      if (counter == 32) {
+      earth_msg[prog_counter] = data;
+      prog_counter++;
+      if (prog_counter == prog_len - 6) {
+        ascii_prog = '>';
+        //uartlink_send_basic(0,&ascii_prog,1);
         progress = wait_esp0;
       }
       break;
