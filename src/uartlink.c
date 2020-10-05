@@ -542,7 +542,7 @@ __nv uint8_t incoming_cmd;
 __nv char earth_msg[32] = {'a','b','c','d','e','f','g','h',
 'i','j','k','l','m','n','o','p',' ','W','e','r','e','i','n',
 's','p','a','c','e',' ','n','a','t'};
-__nv char score_msg[32] = {0};
+__nv char score_msg[32];
 static uint16_t prog_len = 0;
 static uint8_t prog_counter = 0;
 static uint8_t prog_keys[16] = {0};
@@ -595,9 +595,6 @@ static handle_progress(uint8_t data) {
           P1OUT |= BIT1;
           P1DIR |= BIT1;
           P1OUT &= ~BIT1;
-          P1OUT |= BIT1;
-          P1DIR |= BIT1;
-          P1OUT &= ~BIT1;
           prog_counter = 0;
           progress = wait_sub_cmd;
         }
@@ -615,16 +612,16 @@ static handle_progress(uint8_t data) {
         P1DIR |= BIT1;
         P1OUT &= ~BIT1;
       if (data == SCORE) {
-        P1OUT |= BIT1;
-        P1DIR |= BIT1;
-        P1OUT &= ~BIT1;
         prog_counter= 0;
         progress = wait_score;
       }
       else if (data == EXPT_WAKE || data == RF_KILL) {
+          P1OUT |= BIT1;
+          P1DIR |= BIT1;
+          P1OUT &= ~BIT1;
           incoming_cmd = data;
-          progress = wait_keys;
           prog_counter = 0;
+          progress = wait_keys;
       }
       else if (data == EXPT_DONE) {
         incoming_cmd = data;
@@ -638,6 +635,9 @@ static handle_progress(uint8_t data) {
     case wait_keys:
       // process prog_keys into prog_keys array until we reach required number for
       // bootloader and kill
+      P1OUT |= BIT1;
+      P1DIR |= BIT1;
+      P1OUT &= ~BIT1;
       prog_keys[prog_counter] = data;
       if (incoming_cmd == EXPT_WAKE && prog_counter == 7) {
         //check prog_keys
@@ -657,23 +657,39 @@ static handle_progress(uint8_t data) {
         }
       }
       else if (incoming_cmd == RF_KILL && prog_counter == 15) {
-        int flag = 0;
-        for (int i = 0; i < 16; i++) {
+        int flag;
+        flag = 0;
+        for (int i = 0; i < 15; i++) {
           // check prog_keys
           if (prog_keys[i] != RF_KILL_KEYS[i]) {
             flag = 1;
             break;
           }
+            /*P1OUT |= BIT1;
+            P1DIR |= BIT1;
+            P1OUT &= ~BIT1;*/
         }
-        if (flag) {
+        if (flag == 1) {
           progress = wait_esp0;
         }
         else {
           //RF_KILL_OK
-          // Change progress first so we don't rerun this
-          progress = wait_esp0;
+          P1OUT |= BIT1;
+          P1DIR |= BIT1;
+          P1OUT &= ~BIT1;
+          P1OUT |= BIT1;
+          P1DIR |= BIT1;
+          P1OUT &= ~BIT1;
           // Increment kill count
           rf_kill_count++;
+          if (rf_kill_count >= MAX_KILL_COUNT) {
+            P1OUT |= BIT1;
+            P1DIR |= BIT1;
+            P1OUT &= ~BIT1;
+            rf_dead = 0xAB;
+          }
+          // Change progress first so we don't rerun this
+          progress = wait_esp0;
         }
       }
       else {
@@ -694,12 +710,6 @@ static handle_progress(uint8_t data) {
       }
       break;
     case wait_score:
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
       score_msg[prog_counter] = data;
       prog_counter++;
       if (prog_counter == prog_len - 6) {
