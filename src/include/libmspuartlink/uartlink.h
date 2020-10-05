@@ -50,6 +50,7 @@ typedef enum {
 typedef struct transfer_ {
   transfer_status_t status;
   uint16_t transfer_len;
+  uint8_t ready;
 } transfer;
 
 extern transfer comm_expt_link;
@@ -95,5 +96,9 @@ void uartlink_send(size_t port, uint8_t *payload, unsigned len);
 
 // Same as uartlink_send, except we don't encode a checksum
 void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len);
+
+#define XFER_BUFFER_SIZE 256 //TODO confirm this
+
+extern uint8_t xfer_buffer[XFER_BUFFER_SIZE];
 
 #endif // LIBMSPUARTLINK_UARTLINK_H
