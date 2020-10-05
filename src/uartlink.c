@@ -578,6 +578,8 @@ static int handle_progress(uint8_t data) {
         prog_len = 0;
         progress = wait_len;
         //uartlink_send_basic(0,&progress,1);
+      } else { // if byte rx'd after ESP_BYTE0 isn't ESP_BYTE1, then start over
+        progress = wait_esp0;
       }
       break;
     case wait_len:
