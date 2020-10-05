@@ -34,8 +34,11 @@ typedef enum {
   wait_esp1,
   wait_len,
   wait_cmd,
+  wait_sub_cmd,
   wait_keys,
+  wait_score,
   wait_msg,
+  wait_page,
   wait_extra
 } incoming_status_t;
 
@@ -50,8 +53,10 @@ typedef struct transfer_ {
 } transfer;
 
 extern transfer comm_expt_link;
-extern __nv uint8_t rf_kill_count;
+extern uint8_t rf_kill_count;
+extern __nv uint8_t rf_dead;
 extern __nv char earth_msg[32];
+extern __nv char score_msg[32];
 extern __nv incoming_status_t progress;
 extern __nv uint8_t incoming_cmd;
 

@@ -16,8 +16,13 @@ typedef enum {
 #define RX_FIFO_SIZE 511
 #define RX_FIFO_SIZE_MASK 0x1ff
 
-__nv transfer comm_expt_link;
-__nv uint8_t rf_kill_count = 0;
+// we want this volatile!
+transfer comm_expt_link = {TRANSFER_DONE, 0};
+__nv uint8_t link_page[0x87];
+
+// We want this volatile!!
+uint8_t rf_kill_count = 0;
+__nv uint8_t rf_dead = 0;
 
 // We force this out into NVM for linking, but we'll let the head/tail be zero'd
 // on reboots
@@ -537,6 +542,7 @@ __nv uint8_t incoming_cmd;
 __nv char earth_msg[32] = {'a','b','c','d','e','f','g','h',
 'i','j','k','l','m','n','o','p',' ','W','e','r','e','i','n',
 's','p','a','c','e',' ','n','a','t'};
+__nv char score_msg[32] = {0};
 static uint16_t prog_len = 0;
 static uint8_t prog_counter = 0;
 static uint8_t prog_keys[16] = {0};
@@ -580,23 +586,22 @@ static handle_progress(uint8_t data) {
       break;
     case wait_cmd:
       if (prog_counter == 5) {
-        if (data == EXPT_WAKE || data == RF_KILL) {
-          incoming_cmd = data;
-          progress = wait_keys;
+        //TODO-- MOVE THIS ABOVE THE prog_counter check
+        if (comm_expt_link.status == TRANSFER_ACTIVE) {
           prog_counter = 0;
+          progress = wait_page;
         }
         else if (data == ASCII) {
-          ascii_prog = '!';
-          progress = wait_msg;
-          //uartlink_send_basic(0,&ascii_prog,1);
+          P1OUT |= BIT1;
+          P1DIR |= BIT1;
+          P1OUT &= ~BIT1;
           P1OUT |= BIT1;
           P1DIR |= BIT1;
           P1OUT &= ~BIT1;
           prog_counter = 0;
+          progress = wait_sub_cmd;
         }
         else {
-          ascii_prog = '?';
-          //uartlink_send_basic(0,&ascii_prog,1);
           progress = wait_esp0;
         }
           prog_counter = 0;
@@ -605,9 +610,32 @@ static handle_progress(uint8_t data) {
         prog_counter++;
       }
       break;
+    case wait_sub_cmd:
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
+      if (data == SCORE) {
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
+        prog_counter= 0;
+        progress = wait_score;
+      }
+      else if (data == EXPT_WAKE || data == RF_KILL) {
+          incoming_cmd = data;
+          progress = wait_keys;
+          prog_counter = 0;
+      }
+      else if (data == EXPT_DONE) {
+        incoming_cmd = data;
+        //TODO update transfer status here --> move this up!!
+        progress = wait_esp0;
+      }
+      else {
+        progress = wait_msg;
+      }
+      break;
     case wait_keys:
-      ascii_prog = '[';
-      //uartlink_send_basic(0,&ascii_prog,1);
       // process prog_keys into prog_keys array until we reach required number for
       // bootloader and kill
       prog_keys[prog_counter] = data;
@@ -624,6 +652,7 @@ static handle_progress(uint8_t data) {
           progress = wait_esp0;
         }
         else {
+          comm_expt_link.status = TRANSFER_ACTIVE;
           //EXPT_WAKE_OK
         }
       }
@@ -661,8 +690,19 @@ static handle_progress(uint8_t data) {
       earth_msg[prog_counter] = data;
       prog_counter++;
       if (prog_counter == prog_len - 6) {
-        ascii_prog = '>';
-        //uartlink_send_basic(0,&ascii_prog,1);
+        progress = wait_esp0;
+      }
+      break;
+    case wait_score:
+      P1OUT |= BIT1;
+      P1DIR |= BIT1;
+      P1OUT &= ~BIT1;
+      P1OUT |= BIT1;
+      P1DIR |= BIT1;
+      P1OUT &= ~BIT1;
+      score_msg[prog_counter] = data;
+      prog_counter++;
+      if (prog_counter == prog_len - 6) {
         progress = wait_esp0;
       }
       break;
