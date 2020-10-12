@@ -558,13 +558,38 @@ static int handle_progress(uint8_t data) {
     P1OUT |= BIT1;
     P1DIR |= BIT1;
     P1OUT &= ~BIT1;
+  // Handle xfer issues
+  if (comm_expt_link.status == TRANSFER_ACTIVE) {
+    xfer_buffer[xfer_count] = data;
+    xfer_count++;
+    if (xfer_count > XFER_BUFFER_SIZE ||
+      xfer_count >= comm_expt_link.transfer_len) {
+      // Set ready
+      if (data == EXPT_DONE) {
+        comm_expt_link.status = TRANSFER_DONE;
+        comm_expt_link.transfer_len = 4;
+        xfer_count = 0;
+        progress = wait_esp0;
+       }
+       else {
+        comm_expt_link.ready = 1;
+        uartlink_close(0);
+        uartlink_open_tx(1);
+        //TODO make sure ESP bytes are getting tacked on
+        uartlink_send_basic(1,xfer_buffer,comm_expt_link.transfer_len);
+        uartlink_close(1);
+        uartlink_open(0);
+        xfer_count = 0;
+        comm_expt_link.transfer_len = 4;
+        progress = wait_esp0;
+       }
+    }
+  }
+
   switch(progress) {
     case wait_esp0:
       prog_counter = 0;
       if (data == ESP_BYTE0) {
-        P1OUT |= BIT1;
-        P1DIR |= BIT1;
-        P1OUT &= ~BIT1;
         //uartlink_send_basic(0,&progress,1);
         progress = wait_esp1;
       }
@@ -572,9 +597,6 @@ static int handle_progress(uint8_t data) {
     case wait_esp1:
       prog_counter = 0;
       if (data == ESP_BYTE1) {
-        P1OUT |= BIT1;
-        P1DIR |= BIT1;
-        P1OUT &= ~BIT1;
         prog_len = 0;
         progress = wait_len;
         //uartlink_send_basic(0,&progress,1);
@@ -582,13 +604,14 @@ static int handle_progress(uint8_t data) {
       break;
     case wait_len:
       //uartlink_send_basic(0,&progress,1);
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
       prog_len = data;
       prog_counter = 0;
       progress = wait_cmd;
       if (comm_expt_link.status == TRANSFER_ACTIVE) {
+        // May need to shorten this...
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
         comm_expt_link.transfer_len = prog_len + 3;
       }
       break;
@@ -611,22 +634,19 @@ static int handle_progress(uint8_t data) {
       }
       break;
     case wait_sub_cmd:
-        P1OUT |= BIT1;
-        P1DIR |= BIT1;
-        P1OUT &= ~BIT1;
       if (data == SCORE) {
         prog_counter= 0;
         progress = wait_score;
       }
       else if (data == EXPT_WAKE || data == RF_KILL) {
-          P1OUT |= BIT1;
-          P1DIR |= BIT1;
-          P1OUT &= ~BIT1;
           incoming_cmd = data;
           prog_counter = 0;
           progress = wait_keys;
       }
       else if (data == EXPT_DONE) {
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
         incoming_cmd = data;
         comm_expt_link.status == TRANSFER_DONE;
         progress = wait_esp0;
@@ -645,9 +665,6 @@ static int handle_progress(uint8_t data) {
     case wait_keys:
       // process prog_keys into prog_keys array until we reach required number for
       // bootloader and kill
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
       prog_keys[prog_counter] = data;
       if (incoming_cmd == EXPT_WAKE && prog_counter == 7) {
         //check prog_keys
@@ -662,24 +679,13 @@ static int handle_progress(uint8_t data) {
           progress = wait_esp0;
         }
         else {
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
-      P1OUT |= BIT1;
-      P1DIR |= BIT1;
-      P1OUT &= ~BIT1;
           //EXPT_WAKE_OK
           comm_expt_link.status = TRANSFER_ACTIVE;
           // Zero out xfer_count
           xfer_count = 0;
           // Set to 5 until we overwrite it at length
           comm_expt_link.transfer_len = 4;
+          progress = wait_esp0;
         }
       }
       else if (incoming_cmd == RF_KILL && prog_counter == 15) {
@@ -700,18 +706,9 @@ static int handle_progress(uint8_t data) {
         }
         else {
           //RF_KILL_OK
-          P1OUT |= BIT1;
-          P1DIR |= BIT1;
-          P1OUT &= ~BIT1;
-          P1OUT |= BIT1;
-          P1DIR |= BIT1;
-          P1OUT &= ~BIT1;
           // Increment kill count
           rf_kill_count++;
           if (rf_kill_count >= 5) {
-            P1OUT |= BIT1;
-            P1DIR |= BIT1;
-            P1OUT &= ~BIT1;
             rf_dead = 0xAB;
           }
           // Change progress first so we don't rerun this
@@ -765,33 +762,21 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
             // Put data at back of buffer
             uint8_t data = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
             handle_progress(data);
-            // If wormhole active, write to other uart 
-            if (comm_expt_link.status == TRANSFER_ACTIVE) {
-              xfer_buffer[xfer_count] = UART(LIBMSPUARTLINK1_UART_IDX, RXBUF);
-              xfer_count++;
-              if (xfer_count > XFER_BUFFER_SIZE ||
-                xfer_count >= comm_expt_link.transfer_len) {
-                // Set ready
-                comm_expt_link.ready = 1;
-              }
-            }
-            else {
-              rx_fifo[0][rx_fifo_tail[0]] = data;
-              // Increment buffer size
-              rx_fifo_tail[0] = (rx_fifo_tail[0] + 1) & RX_FIFO_SIZE_MASK; //
-              //wrap-around (assumes size is power of 2)
+            rx_fifo[0][rx_fifo_tail[0]] = data;
+            // Increment buffer size
+            rx_fifo_tail[0] = (rx_fifo_tail[0] + 1) & RX_FIFO_SIZE_MASK; //
+            //wrap-around (assumes size is power of 2)
 
-              if (rx_fifo_tail[0] == rx_fifo_head[0]) {
-                  // overflow, throw away the received byte, by rolling back NOTE:
-                  // tail == head happens both when full and empty, so can't use
-                  // that as overflow check
-                  rx_fifo_tail[0] = (rx_fifo_tail[0] - 1) & RX_FIFO_SIZE_MASK; //
-                  //wrap-around (assumes size is power of 2)
-              }
+            if (rx_fifo_tail[0] == rx_fifo_head[0]) {
+                // overflow, throw away the received byte, by rolling back NOTE:
+                // tail == head happens both when full and empty, so can't use
+                // that as overflow check
+                rx_fifo_tail[0] = (rx_fifo_tail[0] - 1) & RX_FIFO_SIZE_MASK; //
+                //wrap-around (assumes size is power of 2)
             }
 
-            __bic_SR_register_on_exit(LPM4_bits); // wakeup
-            break;
+          __bic_SR_register_on_exit(LPM4_bits); // wakeup
+          break;
         }
         default:
             break;
