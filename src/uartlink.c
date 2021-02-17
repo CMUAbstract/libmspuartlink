@@ -541,8 +541,10 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
 //COMM UART most of the time
 // Needs to look for transfer_active and transfer_done messages.
 #if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
-__nv incoming_status_t progress;
-__nv uint8_t incoming_cmd;
+//TODO check that changing these to volatile works... We want this whole thing
+//idempotent
+incoming_status_t progress;
+uint8_t incoming_cmd;
 __nv char earth_msg[32] = {'a','b','c','d','e','f','g','h',
 'i','j','k','l','m','n','o','p',' ','W','e','r','e','i','n',
 's','p','a','c','e',' ','n','a','t'};
