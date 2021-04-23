@@ -540,7 +540,7 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
 
 //COMM UART most of the time
 // Needs to look for transfer_active and transfer_done messages.
-#if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
+#if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE) && !defined(LIBMSPUARTLINK_NO_PROCESS)
 //TODO check that changing these to volatile works... We want this whole thing
 //idempotent
 incoming_status_t progress;
@@ -767,6 +767,41 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
             uint8_t data = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
             handle_progress(data);
             rx_fifo[0][rx_fifo_tail[0]] = data;
+            // Increment buffer size
+            rx_fifo_tail[0] = (rx_fifo_tail[0] + 1) & RX_FIFO_SIZE_MASK; //
+            //wrap-around (assumes size is power of 2)
+
+            if (rx_fifo_tail[0] == rx_fifo_head[0]) {
+                // overflow, throw away the received byte, by rolling back NOTE:
+                // tail == head happens both when full and empty, so can't use
+                // that as overflow check
+                rx_fifo_tail[0] = (rx_fifo_tail[0] - 1) & RX_FIFO_SIZE_MASK; //
+                //wrap-around (assumes size is power of 2)
+            }
+
+          __bic_SR_register_on_exit(LPM4_bits); // wakeup
+          break;
+        }
+        default:
+            break;
+    }
+}
+#elif defined(LIBMSPUARTLINK_NO_PROCESS) && defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
+__attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK0_UART_IDX))))
+void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
+{
+    switch(__even_in_range(UART(LIBMSPUARTLINK0_UART_IDX, IV),0x08)) {
+        case UART_INTFLAG(TXIFG):
+            if (tx_len[0]--) {
+                UART(LIBMSPUARTLINK0_UART_IDX, TXBUF) = *tx_data[0]++;
+            } else { // last byte got done
+                UART(LIBMSPUARTLINK0_UART_IDX, IE) &= ~UCTXIE;
+                __bic_SR_register_on_exit(LPM4_bits); // wakeup
+            }
+            break; // nothing to do, main thread is sleeping, so just wakeup
+        case UART_INTFLAG(RXIFG):
+        {
+            rx_fifo[0][rx_fifo_tail[0]] = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
             // Increment buffer size
             rx_fifo_tail[0] = (rx_fifo_tail[0] + 1) & RX_FIFO_SIZE_MASK; //
             //wrap-around (assumes size is power of 2)
