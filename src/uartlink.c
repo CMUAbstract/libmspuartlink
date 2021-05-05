@@ -265,7 +265,8 @@ void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len)
       break;
       case LIBMSPUARTLINK1_UART_IDX:
         UART(LIBMSPUARTLINK1_UART_IDX, IE) |= UCTXIE;
-        UART(LIBMSPUARTLINK1_UART_IDX, TXBUF) = *tx_data[port]; // first byte, clears IFG
+        UART(LIBMSPUARTLINK1_UART_IDX, TXBUF) = *tx_data[port]++; // first byte, clears IFG
+        tx_len[port]--;
 
         // Sleep, while ISR TXes the remaining bytes
         //
@@ -283,7 +284,8 @@ void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len)
       break;
       case LIBMSPUARTLINK2_UART_IDX:
         UART(LIBMSPUARTLINK2_UART_IDX, IE) |= UCTXIE;
-        UART(LIBMSPUARTLINK2_UART_IDX, TXBUF) = *tx_data[port];// first byte, clears IFG
+        UART(LIBMSPUARTLINK2_UART_IDX, TXBUF) = *tx_data[port]++;// first byte, clears IFG
+        tx_len[port]--;
 
         // Sleep, while ISR TXes the remaining bytes
         //
