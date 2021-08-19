@@ -163,7 +163,11 @@ void uartlink_open(size_t port)
       EUSCI_A_UART_enableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
       break;
     case LIBMSPUARTLINK2_UART_IDX:
-      UART_SET_SEL(LIBMSPUARTLINK2_PIN_RX_PORT, BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
+      //UART_SET_SEL(LIBMSPUARTLINK2_PIN_RX_PORT, BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
+      //  BIT(LIBMSPUARTLINK2_PIN_TX_PIN));
+      GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL0) |= BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
+        BIT(LIBMSPUARTLINK2_PIN_TX_PIN);
+      GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL1) &= ~(BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
         BIT(LIBMSPUARTLINK2_PIN_TX_PIN));
       uartlink_configure(port);
 
@@ -569,6 +573,8 @@ static int handle_progress(uint8_t data) {
     if (xfer_count > XFER_BUFFER_SIZE ||
       xfer_count >= comm_expt_link.transfer_len) {
       // Set ready
+      //TODO: need to change this to be in the ascii, extra slot, otherwise we can't
+      //send 0x28...
       if (data == EXPT_DONE) {
         comm_expt_link.status = TRANSFER_DONE;
         comm_expt_link.transfer_len = 4;
@@ -596,6 +602,9 @@ static int handle_progress(uint8_t data) {
       if (data == ESP_BYTE0) {
         //uartlink_send_basic(0,&progress,1);
         progress = wait_esp1;
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
       }
       break;
     case wait_esp1:
@@ -603,6 +612,9 @@ static int handle_progress(uint8_t data) {
       if (data == ESP_BYTE1) {
         prog_len = 0;
         progress = wait_len;
+        P1OUT |= BIT1;
+        P1DIR |= BIT1;
+        P1OUT &= ~BIT1;
         //uartlink_send_basic(0,&progress,1);
       } else { // if byte rx'd after ESP_BYTE0 isn't ESP_BYTE1, then start over
         progress = wait_esp0;
@@ -692,6 +704,9 @@ static int handle_progress(uint8_t data) {
           // Set to 5 until we overwrite it at length
           comm_expt_link.transfer_len = 4;
           progress = wait_esp0;
+          P1OUT |= BIT1;
+          P1DIR |= BIT1;
+          P1OUT &= ~BIT1;
         }
       }
       else if (incoming_cmd == RF_KILL && prog_counter == 15) {
@@ -703,9 +718,6 @@ static int handle_progress(uint8_t data) {
             flag = 1;
             break;
           }
-            /*P1OUT |= BIT1;
-            P1DIR |= BIT1;
-            P1OUT &= ~BIT1;*/
         }
         if (flag == 1) {
           progress = wait_esp0;
