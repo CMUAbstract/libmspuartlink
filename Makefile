@@ -1,6 +1,7 @@
 LIB = libmspuartlink
 
-OBJECTS = uartlink.o
+OBJECTS = uartlink.o \
+          isrs.o
 
 DEPS += libmsp libio
 

@@ -39,25 +39,13 @@ typedef enum {
   wait_score,
   wait_msg,
   wait_page,
-  wait_extra
+  wait_extra,
+  receive_data,
 } incoming_status_t;
 
-typedef enum {
-  TRANSFER_ACTIVE,
-  TRANSFER_DONE,
-} transfer_status_t;
 
-typedef struct transfer_ {
-  transfer_status_t status;
-  uint16_t transfer_len;
-  uint8_t ready;
-} transfer;
-
-extern transfer comm_expt_link;
 extern uint8_t rf_kill_count;
 extern __nv uint8_t rf_dead;
-extern __nv char earth_msg[32];
-extern __nv char score_msg[32];
 extern __nv incoming_status_t progress;
 extern __nv uint8_t incoming_cmd;
 
@@ -100,5 +88,28 @@ void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len);
 #define XFER_BUFFER_SIZE 256 //TODO confirm this
 
 extern uint8_t xfer_buffer[XFER_BUFFER_SIZE];
+
+// These are really just for internal use, but we split up packet processing
+typedef enum {
+    DECODER_STATE_HEADER  = 0x0,
+    DECODER_STATE_PAYLOAD,
+} decoder_state_t;
+
+#define RX_FIFO_SIZE 511
+#define RX_FIFO_SIZE_MASK 0x1ff
+
+extern __nv uint8_t rx_fifo[3][RX_FIFO_SIZE];
+extern unsigned rx_fifo_head[3] ;
+extern unsigned rx_fifo_tail[3] ;
+extern uint8_t *tx_data[3];
+extern unsigned tx_len[3];
+extern decoder_state_t decoder_state[3] ;
+extern unsigned rx_payload_len[3] ;
+extern ul_header_t rx_header[3];
+
+#define UART0_BUFFER_CNT 2
+#define UART1_BUFFER_CNT 2
+
+#define COMPLETE 0xa5
 
 #endif // LIBMSPUARTLINK_UARTLINK_H
