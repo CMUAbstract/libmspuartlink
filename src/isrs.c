@@ -9,6 +9,14 @@
 #include <libartibeus/handle_uarts.h>
 
 #include "uartlink.h"
+#ifndef BIT_FLIP
+#define BIT_FLIP(port,bit) \
+	P##port##OUT |= BIT##bit; \
+	P##port##DIR |= BIT##bit; \
+	P##port##OUT &= ~BIT##bit;
+#endif
+
+
 //COMM UART most of the time
 // Needs to look for transfer_active and transfer_done messages.
 #if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE) && !defined(LIBMSPUARTLINK_NO_PROCESS)
@@ -16,10 +24,12 @@
 //idempotent
 static uint8_t prog_keys[16] = {0};
 
-
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK0_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 {
+    BIT_FLIP(1,1);
+    BIT_FLIP(1,2);
+    BIT_FLIP(1,2);
     switch(__even_in_range(UART(LIBMSPUARTLINK0_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
             if (tx_len[0]--) {
@@ -32,6 +42,7 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
         case UART_INTFLAG(RXIFG):
         {
             // Put data at back of buffer
+            BIT_FLIP(1,2);
             uint8_t data = UART(LIBMSPUARTLINK0_UART_IDX, RXBUF);
             handle_progress_uart0(data);
             __bic_SR_register_on_exit(LPM4_bits); // wakeup
@@ -41,7 +52,8 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
             break;
     }
 }
-#elif defined(LIBMSPUARTLINK_NO_PROCESS) && defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE)
+#elif defined(LIBMSPUARTLINK_NO_PROCESS) && defined(LIBMSPUARTLINK0_UART_IDX) \
+&& !defined(CONSOLE)
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK0_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 {
@@ -79,10 +91,11 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 #endif
 
 //EXPT UART most of the time
-#ifdef LIBMSPUARTLINK1_UART_IDX & !defined(LIBMSPUARTLINK_NO_PROCESS)
+#if defined(LIBMSPUARTLINK1_UART_IDX) && !defined(LIBMSPUARTLINK_NO_PROCESS)
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK1_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
 {
+    BIT_FLIP(1,2);
     switch(__even_in_range(UART(LIBMSPUARTLINK1_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
             if (tx_len[1]--) {
@@ -146,6 +159,8 @@ void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK2_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK2_UART_IDX) (void)
 {
+    BIT_FLIP(1,2);
+    BIT_FLIP(1,1);
     switch(__even_in_range(UART(LIBMSPUARTLINK2_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
             if (tx_len[2]--) {
