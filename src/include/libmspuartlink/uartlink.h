@@ -44,11 +44,6 @@ typedef enum {
 } incoming_status_t;
 
 
-extern uint8_t rf_kill_count;
-extern __nv uint8_t rf_dead;
-extern __nv incoming_status_t progress;
-extern __nv uint8_t incoming_cmd;
-
 #if defined(LIBMSPUARTLINK0_PIN_RX_PORT) || \
 defined(LIBMSPUARTLINK1_PIN_RX_PORT) || \
 defined(LIBMSPUARTLINK2_PIN_RX_PORT)

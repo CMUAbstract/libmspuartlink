@@ -17,15 +17,6 @@
 
 
 
-__nv uint8_t xfer_buffer[XFER_BUFFER_SIZE];
-uint8_t xfer_count = 0;
-
-
-
-// We want this volatile!!
-uint8_t rf_kill_count = 0;
-__nv uint8_t rf_dead = 0;
-
 // We force this out into NVM for linking, but we'll let the head/tail be zero'd
 // on reboots
 __nv uint8_t rx_fifo[3][RX_FIFO_SIZE];
