@@ -156,8 +156,10 @@ void uartlink_open(size_t port)
       //  BIT(LIBMSPUARTLINK2_PIN_TX_PIN));
       GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL0) |= BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
         BIT(LIBMSPUARTLINK2_PIN_TX_PIN);
-      GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL1) &= ~(BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
-        BIT(LIBMSPUARTLINK2_PIN_TX_PIN));
+      //GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL1) &= ~(BIT(LIBMSPUARTLINK2_PIN_RX_PIN) |
+      //  BIT(LIBMSPUARTLINK2_PIN_TX_PIN));
+      GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL1) &= ~BIT(LIBMSPUARTLINK2_PIN_RX_PIN);
+      GPIO(LIBMSPUARTLINK2_PIN_RX_PORT,SEL1) &= ~BIT(LIBMSPUARTLINK2_PIN_TX_PIN);
       uartlink_configure(port);
 
       EUSCI_A_UART_clearInterrupt(EUSCI_A2_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
@@ -331,6 +333,7 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
         //LOG("uartlink: rcved: %02x %c\r\n", rx_byte,rx_byte);
 
         // assert: pkt.header.size < UARTLINK_MAX_PAYLOAD_SIZE
+        //PRINTF("%c",rx_byte);
         payload[rx_payload_len[port]++] = rx_byte;
         if (rx_payload_len[port] == size) {
                 LOG("uartlink: finished receiving pkt: len %u\r\n",
@@ -435,8 +438,7 @@ void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
         case UART_INTFLAG(RXIFG):
         {
             uint8_t data = UART(LIBMSPUARTLINK1_UART_IDX, RXBUF);
-            handle_progress_uart1(data);//TODO put back!
-
+            handle_progress_uart1(data);
             __bic_SR_register_on_exit(LPM4_bits); // wakeup
             break;
         }
@@ -482,7 +484,31 @@ void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
 #endif
 
 //GNSS on artibeus (most of the time)
-#ifdef LIBMSPUARTLINK2_UART_IDX
+#ifdef LIBMSPUARTLINK2_UART_IDX && !defined(LIBMSPUARTLINK_NO_PROCESS)
+__attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK2_UART_IDX))))
+void UART_ISR(LIBMSPUARTLINK2_UART_IDX) (void)
+{
+    switch(__even_in_range(UART(LIBMSPUARTLINK2_UART_IDX, IV),0x08)) {
+        case UART_INTFLAG(TXIFG):
+            if (tx_len[2]--) {
+                UART(LIBMSPUARTLINK2_UART_IDX, TXBUF) = *tx_data[2]++;
+            } else { // last byte got done
+                UART(LIBMSPUARTLINK2_UART_IDX, IE) &= ~UCTXIE;
+                __bic_SR_register_on_exit(LPM4_bits); // wakeup
+            }
+            break; // nothing to do, main thread is sleeping, so just wakeup
+        case UART_INTFLAG(RXIFG):
+        {
+            uint8_t data = UART(LIBMSPUARTLINK2_UART_IDX, RXBUF);
+            handle_progress_uart2(data);
+            __bic_SR_register_on_exit(LPM4_bits); // wakeup
+            break;
+        }
+        default:
+            break;
+    }
+}
+#elif defined(LIBMSPUARTLINK2_UART_IDX)
 __attribute__ ((interrupt(UART_VECTOR(LIBMSPUARTLINK2_UART_IDX))))
 void UART_ISR(LIBMSPUARTLINK2_UART_IDX) (void)
 {
