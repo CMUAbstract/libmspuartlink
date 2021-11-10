@@ -238,6 +238,7 @@ void uartlink_send_basic(size_t port, uint8_t *payload, unsigned len)
     // Setup pointers for the ISR
     tx_data[port] = payload;
     tx_len[port] = len;
+    //for (int i = 0; i < tx_len[port]; i++) { BIT_FLIP(1,1); }
     switch (port) {
       case LIBMSPUARTLINK0_UART_IDX:
         UART(LIBMSPUARTLINK0_UART_IDX, IE) |= UCTXIE;
@@ -364,6 +365,7 @@ void UART_ISR(LIBMSPUARTLINK0_UART_IDX) (void)
 {
     switch(__even_in_range(UART(LIBMSPUARTLINK0_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
+            //for (int i = 0; i < tx_len[0]; i++) { BIT_FLIP(1,1); }
             if (tx_len[0]--) {
                 UART(LIBMSPUARTLINK0_UART_IDX, TXBUF) = *tx_data[0]++;
             } else { // last byte got done
@@ -428,6 +430,7 @@ void UART_ISR(LIBMSPUARTLINK1_UART_IDX) (void)
 {
     switch(__even_in_range(UART(LIBMSPUARTLINK1_UART_IDX, IV),0x08)) {
         case UART_INTFLAG(TXIFG):
+            //for (int i = 0; i < tx_len[1]; i++) { BIT_FLIP(1,1); }
             if (tx_len[1]--) {
                 UART(LIBMSPUARTLINK1_UART_IDX, TXBUF) = *tx_data[1]++;
             } else { // last byte got done
