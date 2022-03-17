@@ -354,6 +354,8 @@ unsigned uartlink_receive_basic(size_t port, uint8_t *payload, unsigned size)
     return rx_pkt_len;
 }
 
+//---> SMART INTERRUPT HANDLER FOR UART0 (THE COMM UART) <---//
+// This fires if a byte arrives on the uart
 #if defined(LIBMSPUARTLINK0_UART_IDX) && !defined(CONSOLE) && !defined(LIBMSPUARTLINK_NO_PROCESS)
 //TODO check that changing these to volatile works... We want this whole thing
 //idempotent
